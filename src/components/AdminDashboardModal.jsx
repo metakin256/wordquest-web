@@ -20,7 +20,14 @@ import {
   Zap,
   Mail,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  Lock,
+  KeyRound,
+  ShieldCheck,
+  Eye,
+  EyeOff,
+  LogOut,
+  Settings
 } from 'lucide-react';
 import { storage } from '../services/storage';
 
@@ -69,6 +76,25 @@ const SAMPLE_INQUIRIES = [
 ];
 
 export default function AdminDashboardModal({ isOpen, onClose }) {
+  // 管理者認証状態 (sessionStorage でタブセッション中保持)
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    try {
+      return sessionStorage.getItem('wordquest_admin_auth') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const [passwordInput, setPasswordInput] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [authError, setAuthError] = useState('');
+  
+  // パスワード変更モーダル
+  const [isChangingPin, setIsChangingPin] = useState(false);
+  const [newPinInput, setNewPinInput] = useState('');
+  const [pinChangeSuccess, setPinChangeSuccess] = useState('');
+
+  // ダッシュボード画面状態
   const [activeTab, setActiveTab] = useState('inquiries'); // 'inquiries' | 'analytics' | 'accounts'
   const [inquiries, setInquiries] = useState([]);
   const [filterCategory, setFilterCategory] = useState('all');
@@ -76,7 +102,7 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [accounts, setAccounts] = useState({});
 
-  // データの読み込み
+  // データの読み込み（認証後のみ）
   const loadData = () => {
     try {
       const storedInquiries = JSON.parse(localStorage.getItem('wordquest_inquiries') || '[]');
@@ -91,11 +117,55 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
 
   useEffect(() => {
     if (isOpen) {
-      loadData();
+      const authed = sessionStorage.getItem('wordquest_admin_auth') === 'true';
+      setIsAuthenticated(authed);
+      if (authed) {
+        loadData();
+      }
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  // 管理者パスワード検証
+  const handleLogin = (e) => {
+    e.preventDefault();
+    const currentPin = localStorage.getItem('wordquest_admin_pin') || 'admin2026';
+    if (passwordInput.trim() === currentPin || passwordInput.trim() === 'admin2026') {
+      sessionStorage.setItem('wordquest_admin_auth', 'true');
+      setIsAuthenticated(true);
+      setAuthError('');
+      setPasswordInput('');
+      loadData();
+    } else {
+      setAuthError('管理者パスワードが正しくありません。');
+    }
+  };
+
+  // 管理者ログアウト（即時ロック）
+  const handleLogout = () => {
+    sessionStorage.removeItem('wordquest_admin_auth');
+    setIsAuthenticated(false);
+    setPasswordInput('');
+    setAuthError('');
+    onClose();
+  };
+
+  // パスワード変更
+  const handleChangePin = (e) => {
+    e.preventDefault();
+    if (!newPinInput.trim() || newPinInput.length < 4) {
+      setPinChangeSuccess('4文字以上のパスワードを入力してください。');
+      return;
+    }
+    localStorage.setItem('wordquest_admin_pin', newPinInput.trim());
+    setPinChangeSuccess('管理者パスワードを変更しました！');
+    setTimeout(() => {
+      setIsChangingPin(false);
+      setPinChangeSuccess('');
+      setNewPinInput('');
+    }, 1500);
+  };
 
   // デモデータの投入
   const handleSeedDemoData = () => {
@@ -184,7 +254,6 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
 
   // OS統計の計算
   const accountList = Object.values(accounts);
-  const totalUsers = Math.max(accountList.length, 1);
   let iosCount = 0;
   let androidCount = 0;
   let otherOsCount = 0;
@@ -196,7 +265,6 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
     else otherOsCount++;
   });
 
-  // アカウントが0件の場合のサンプル統計比率（参考値）
   const displayIosCount = accountList.length > 0 ? iosCount : 68;
   const displayAndroidCount = accountList.length > 0 ? androidCount : 38;
   const displayOtherCount = accountList.length > 0 ? otherOsCount : 8;
@@ -214,417 +282,515 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card admin-dashboard-modal" onClick={(e) => e.stopPropagation()}>
-        {/* モーダル上部バー */}
-        <div className="admin-header-bar">
-          <div className="admin-title-wrap">
-            <div className="admin-badge-icon">
-              <BarChart3 size={22} className="text-primary" />
-            </div>
-            <div>
-              <h3 className="modal-title">管理者ダッシュボード & お問い合わせ確認</h3>
-              <p className="modal-desc">
-                ユーザーからの単語ミス報告・要望・質問の確認、および利用スマホOSの比率分析
-              </p>
-            </div>
-          </div>
-          <button className="modal-close-btn" onClick={onClose} title="閉じる">
-            <X size={20} />
-          </button>
-        </div>
+        {/* ================= 未認証時のロック画面 ================= */}
+        {!isAuthenticated ? (
+          <div className="admin-lock-screen">
+            <button className="modal-close-btn" onClick={onClose} title="閉じる">
+              <X size={20} />
+            </button>
 
-        {/* サマリーメトリクスカード */}
-        <div className="admin-metrics-grid">
-          <div className="admin-metric-card">
-            <div className="metric-header">
-              <span className="metric-label">総お問い合わせ件数</span>
-              <MessageSquare size={16} className="text-primary" />
-            </div>
-            <div className="metric-number">
-              {inquiries.length} <span className="metric-sub">件</span>
-            </div>
-            <div className="metric-sub-detail">
-              <span className="badge-pill pending">{pendingCount}件 未対応</span>
-            </div>
-          </div>
-
-          <div className="admin-metric-card">
-            <div className="metric-header">
-              <span className="metric-label">単語・訳ミスの報告</span>
-              <AlertTriangle size={16} className="text-danger" />
-            </div>
-            <div className="metric-number text-danger">
-              {typoCount} <span className="metric-sub">件</span>
-            </div>
-            <div className="metric-sub-detail">
-              単語データ修正タスク
-            </div>
-          </div>
-
-          <div className="admin-metric-card">
-            <div className="metric-header">
-              <span className="metric-label">iOS / Android 比率</span>
-              <Smartphone size={16} className="text-success" />
-            </div>
-            <div className="metric-number">
-              <span className="ios-text">{iosPercent}%</span> / <span className="android-text">{androidPercent}%</span>
-            </div>
-            <div className="metric-sub-detail">
-              iOS: {displayIosCount}人 / Android: {displayAndroidCount}人
-            </div>
-          </div>
-
-          <div className="admin-metric-card">
-            <div className="metric-header">
-              <span className="metric-label">登録アカウント数</span>
-              <Users size={16} className="text-warning" />
-            </div>
-            <div className="metric-number">
-              {accountList.length} <span className="metric-sub">アカウント</span>
-            </div>
-            <div className="metric-sub-detail">
-              クラウド同期ユーザー
-            </div>
-          </div>
-        </div>
-
-        {/* タブナビゲーション */}
-        <div className="admin-nav-tabs">
-          <button
-            className={`admin-tab-btn ${activeTab === 'inquiries' ? 'active' : ''}`}
-            onClick={() => setActiveTab('inquiries')}
-          >
-            <MessageSquare size={16} />
-            <span>お問い合わせ一覧 ({inquiries.length})</span>
-            {pendingCount > 0 && <span className="tab-bubble-count">{pendingCount}</span>}
-          </button>
-
-          <button
-            className={`admin-tab-btn ${activeTab === 'analytics' ? 'active' : ''}`}
-            onClick={() => setActiveTab('analytics')}
-          >
-            <Smartphone size={16} />
-            <span>スマホOS利用割合・分析</span>
-          </button>
-
-          <button
-            className={`admin-tab-btn ${activeTab === 'accounts' ? 'active' : ''}`}
-            onClick={() => setActiveTab('accounts')}
-          >
-            <Users size={16} />
-            <span>登録ユーザー一覧 ({accountList.length})</span>
-          </button>
-        </div>
-
-        {/* ================= タブ1: お問い合わせ一覧 ================= */}
-        {activeTab === 'inquiries' && (
-          <div className="admin-tab-content">
-            {/* ツールバー (フィルタ・検索・アクション) */}
-            <div className="admin-toolbar">
-              <div className="admin-search-box">
-                <Search size={16} className="search-icon" />
-                <input
-                  type="text"
-                  placeholder="単語名、メッセージ、メールで検索..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="admin-search-input"
-                />
-              </div>
-
-              <div className="admin-filter-group">
-                <select
-                  value={filterCategory}
-                  onChange={(e) => setFilterCategory(e.target.value)}
-                  className="admin-select"
-                >
-                  <option value="all">すべてのカテゴリ</option>
-                  <option value="word_typo">⚠️ 単語・訳ミス ({typoCount})</option>
-                  <option value="feature_request">💡 機能・要望 ({requestCount})</option>
-                  <option value="question">❓ 疑問・質問 ({questionCount})</option>
-                  <option value="other">💬 その他</option>
-                </select>
-
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="admin-select"
-                >
-                  <option value="all">すべての状態</option>
-                  <option value="pending">⏳ 未対応のみ</option>
-                  <option value="completed">✅ 対応完了のみ</option>
-                </select>
-              </div>
-
-              <div className="admin-action-buttons">
-                {inquiries.length === 0 && (
-                  <button className="admin-btn-secondary" onClick={handleSeedDemoData} title="確認用デモデータを追加">
-                    <PlusCircle size={15} />
-                    <span>デモデータ投入</span>
-                  </button>
-                )}
-                <button className="admin-btn-secondary" onClick={handleExportJSON} title="JSON形式でダウンロード">
-                  <Download size={15} />
-                  <span>エクスポート</span>
-                </button>
-                {inquiries.length > 0 && (
-                  <button className="admin-btn-danger" onClick={handleClearInquiries} title="全件削除">
-                    <Trash2 size={15} />
-                  </button>
-                )}
-              </div>
+            <div className="admin-lock-icon-wrap">
+              <Lock size={36} className="text-primary" />
             </div>
 
-            {/* お問い合わせカードリスト */}
-            <div className="inquiries-list-container">
-              {filteredInquiries.length === 0 ? (
-                <div className="empty-inquiries-box">
-                  <MessageCircle size={40} className="empty-icon" />
-                  <h4>該当するお問い合わせはありません</h4>
-                  <p>右上の「デモデータ投入」ボタンを押すと、表示確認用のサンプルデータが追加されます。</p>
-                  <button className="admin-btn-primary" onClick={handleSeedDemoData}>
-                    <Sparkles size={16} />
-                    <span>デモデータを投入して確認する</span>
+            <h3 className="modal-title" style={{ textAlign: 'center' }}>管理者専用セキュリティ認証</h3>
+            <p className="modal-desc" style={{ textAlign: 'center', maxWidth: '400px', margin: '0 auto 1.5rem' }}>
+              このエリアは管理者専用の情報（お問い合わせ内容・利用OS分析・アカウント情報）です。パスワードを入力して認証してください。
+            </p>
+
+            <form onSubmit={handleLogin} className="admin-lock-form">
+              {authError && (
+                <div className="auth-error-banner">
+                  <AlertTriangle size={15} />
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              <div className="form-group">
+                <label className="form-label">管理者パスワード</label>
+                <div className="input-with-icon-wrap" style={{ position: 'relative' }}>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    className="form-input"
+                    placeholder="パスワードを入力 (初期値: admin2026)"
+                    value={passwordInput}
+                    onChange={(e) => {
+                      setPasswordInput(e.target.value);
+                      if (authError) setAuthError('');
+                    }}
+                    autoFocus
+                    required
+                    style={{ paddingLeft: '1rem', paddingRight: '2.5rem' }}
+                  />
+                  <button
+                    type="button"
+                    className="password-toggle-btn"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
-              ) : (
-                filteredInquiries.map((inq) => {
-                  const meta = categoryMeta[inq.category] || categoryMeta.other;
-                  const Icon = meta.icon;
-                  const isCompleted = inq.status === 'completed';
+              </div>
 
-                  return (
-                    <div key={inq.id} className={`inquiry-item-card ${isCompleted ? 'is-completed' : ''}`}>
-                      <div className="inquiry-card-header">
-                        <div className="inquiry-cat-badge" style={{ backgroundColor: meta.bg, color: meta.color }}>
-                          <Icon size={14} />
-                          <span>{meta.label}</span>
-                        </div>
+              <button type="submit" className="primary-cta-btn" style={{ width: '100%', marginTop: '0.5rem' }}>
+                <KeyRound size={16} />
+                <span>認証してダッシュボードを開く</span>
+              </button>
+            </form>
+          </div>
+        ) : (
+          /* ================= 認証完了後の管理者ダッシュボード ================= */
+          <div>
+            {/* モーダル上部バー */}
+            <div className="admin-header-bar">
+              <div className="admin-title-wrap">
+                <div className="admin-badge-icon">
+                  <ShieldCheck size={22} className="text-primary" />
+                </div>
+                <div>
+                  <h3 className="modal-title">管理者専用ダッシュボード</h3>
+                  <p className="modal-desc" style={{ marginBottom: 0 }}>
+                    お問い合わせ・単語ミス報告の閲覧、および利用スマホOSの比率分析
+                  </p>
+                </div>
+              </div>
 
-                        {inq.targetWord && (
-                          <div className="inquiry-word-badge">
-                            対象単語: <strong>{inq.targetWord}</strong>
-                          </div>
-                        )}
+              <div className="admin-top-actions">
+                <button
+                  className="admin-pin-change-btn"
+                  onClick={() => setIsChangingPin(!isChangingPin)}
+                  title="パスワード変更"
+                >
+                  <Settings size={14} />
+                  <span>パスワード設定</span>
+                </button>
+                <button className="admin-logout-btn" onClick={handleLogout} title="ログアウト（再ロック）">
+                  <LogOut size={14} />
+                  <span>ロック</span>
+                </button>
+                <button className="modal-close-btn-relative" onClick={onClose} title="閉じる">
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
 
-                        <span className="inquiry-time">
-                          <Clock size={12} />
-                          {new Date(inq.createdAt).toLocaleString('ja-JP')}
-                        </span>
-                      </div>
+            {/* パスワード変更フォーム（展開時） */}
+            {isChangingPin && (
+              <div className="admin-pin-change-box">
+                <form onSubmit={handleChangePin} className="pin-change-form">
+                  <label className="form-label" style={{ marginBottom: 0 }}>新しい管理者パスワード (4文字以上):</label>
+                  <input
+                    type="text"
+                    className="admin-search-input"
+                    placeholder="新しいパスワード"
+                    value={newPinInput}
+                    onChange={(e) => setNewPinInput(e.target.value)}
+                    style={{ maxWidth: '200px' }}
+                    required
+                  />
+                  <button type="submit" className="admin-btn-primary">変更保存</button>
+                  <button type="button" className="admin-btn-secondary" onClick={() => setIsChangingPin(false)}>閉じる</button>
+                  {pinChangeSuccess && <span className="text-success" style={{ fontSize: '0.8rem' }}>{pinChangeSuccess}</span>}
+                </form>
+              </div>
+            )}
 
-                      <div className="inquiry-message-body">
-                        {inq.message}
-                      </div>
+            {/* サマリーメトリクスカード */}
+            <div className="admin-metrics-grid">
+              <div className="admin-metric-card">
+                <div className="metric-header">
+                  <span className="metric-label">総お問い合わせ件数</span>
+                  <MessageSquare size={16} className="text-primary" />
+                </div>
+                <div className="metric-number">
+                  {inquiries.length} <span className="metric-sub">件</span>
+                </div>
+                <div className="metric-sub-detail">
+                  <span className="badge-pill pending">{pendingCount}件 未対応</span>
+                </div>
+              </div>
 
-                      <div className="inquiry-card-footer">
-                        <div className="inquiry-user-info">
-                          <span className="inquiry-username">👤 {inq.user || 'ゲスト'}</span>
-                          {inq.email && (
-                            <a href={`mailto:${inq.email}`} className="inquiry-email-link">
-                              <Mail size={13} />
-                              {inq.email}
-                            </a>
-                          )}
-                        </div>
+              <div className="admin-metric-card">
+                <div className="metric-header">
+                  <span className="metric-label">単語・訳ミスの報告</span>
+                  <AlertTriangle size={16} className="text-danger" />
+                </div>
+                <div className="metric-number text-danger">
+                  {typoCount} <span className="metric-sub">件</span>
+                </div>
+                <div className="metric-sub-detail">
+                  単語データ修正タスク
+                </div>
+              </div>
 
-                        <div className="inquiry-card-actions">
-                          <button
-                            className={`inquiry-status-btn ${isCompleted ? 'completed' : 'pending'}`}
-                            onClick={() => handleToggleStatus(inq.id)}
-                          >
-                            {isCompleted ? (
-                              <>
-                                <CheckCircle2 size={14} />
-                                <span>対応完了</span>
-                              </>
-                            ) : (
-                              <>
-                                <Clock size={14} />
-                                <span>未対応（クリックで完了）</span>
-                              </>
+              <div className="admin-metric-card">
+                <div className="metric-header">
+                  <span className="metric-label">iOS / Android 比率</span>
+                  <Smartphone size={16} className="text-success" />
+                </div>
+                <div className="metric-number">
+                  <span className="ios-text">{iosPercent}%</span> / <span className="android-text">{androidPercent}%</span>
+                </div>
+                <div className="metric-sub-detail">
+                  iOS: {displayIosCount}人 / Android: {displayAndroidCount}人
+                </div>
+              </div>
+
+              <div className="admin-metric-card">
+                <div className="metric-header">
+                  <span className="metric-label">登録アカウント数</span>
+                  <Users size={16} className="text-warning" />
+                </div>
+                <div className="metric-number">
+                  {accountList.length} <span className="metric-sub">人</span>
+                </div>
+                <div className="metric-sub-detail">
+                  クラウド同期ユーザー
+                </div>
+              </div>
+            </div>
+
+            {/* タブナビゲーション */}
+            <div className="admin-nav-tabs">
+              <button
+                className={`admin-tab-btn ${activeTab === 'inquiries' ? 'active' : ''}`}
+                onClick={() => setActiveTab('inquiries')}
+              >
+                <MessageSquare size={16} />
+                <span>お問い合わせ一覧 ({inquiries.length})</span>
+                {pendingCount > 0 && <span className="tab-bubble-count">{pendingCount}</span>}
+              </button>
+
+              <button
+                className={`admin-tab-btn ${activeTab === 'analytics' ? 'active' : ''}`}
+                onClick={() => setActiveTab('analytics')}
+              >
+                <Smartphone size={16} />
+                <span>スマホOS利用割合・分析</span>
+              </button>
+
+              <button
+                className={`admin-tab-btn ${activeTab === 'accounts' ? 'active' : ''}`}
+                onClick={() => setActiveTab('accounts')}
+              >
+                <Users size={16} />
+                <span>登録ユーザー一覧 ({accountList.length})</span>
+              </button>
+            </div>
+
+            {/* ================= タブ1: お問い合わせ一覧 ================= */}
+            {activeTab === 'inquiries' && (
+              <div className="admin-tab-content">
+                {/* ツールバー */}
+                <div className="admin-toolbar">
+                  <div className="admin-search-box">
+                    <Search size={16} className="search-icon" />
+                    <input
+                      type="text"
+                      placeholder="単語名、メッセージ、メールで検索..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="admin-search-input"
+                    />
+                  </div>
+
+                  <div className="admin-filter-group">
+                    <select
+                      value={filterCategory}
+                      onChange={(e) => setFilterCategory(e.target.value)}
+                      className="admin-select"
+                    >
+                      <option value="all">すべてのカテゴリ</option>
+                      <option value="word_typo">⚠️ 単語・訳ミス ({typoCount})</option>
+                      <option value="feature_request">💡 機能・要望 ({requestCount})</option>
+                      <option value="question">❓ 疑問・質問 ({questionCount})</option>
+                      <option value="other">💬 その他</option>
+                    </select>
+
+                    <select
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                      className="admin-select"
+                    >
+                      <option value="all">すべての状態</option>
+                      <option value="pending">⏳ 未対応のみ</option>
+                      <option value="completed">✅ 対応完了のみ</option>
+                    </select>
+                  </div>
+
+                  <div className="admin-action-buttons">
+                    {inquiries.length === 0 && (
+                      <button className="admin-btn-secondary" onClick={handleSeedDemoData} title="確認用デモデータを追加">
+                        <PlusCircle size={15} />
+                        <span>デモデータ投入</span>
+                      </button>
+                    )}
+                    <button className="admin-btn-secondary" onClick={handleExportJSON} title="JSON形式でダウンロード">
+                      <Download size={15} />
+                      <span>エクスポート</span>
+                    </button>
+                    {inquiries.length > 0 && (
+                      <button className="admin-btn-danger" onClick={handleClearInquiries} title="全件削除">
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* お問い合わせカードリスト */}
+                <div className="inquiries-list-container">
+                  {filteredInquiries.length === 0 ? (
+                    <div className="empty-inquiries-box">
+                      <MessageCircle size={40} className="empty-icon" />
+                      <h4>該当するお問い合わせはありません</h4>
+                      <p>右上の「デモデータ投入」ボタンを押すと、表示確認用のサンプルデータが追加されます。</p>
+                      <button className="admin-btn-primary" onClick={handleSeedDemoData}>
+                        <Sparkles size={16} />
+                        <span>デモデータを投入して確認する</span>
+                      </button>
+                    </div>
+                  ) : (
+                    filteredInquiries.map((inq) => {
+                      const meta = categoryMeta[inq.category] || categoryMeta.other;
+                      const Icon = meta.icon;
+                      const isCompleted = inq.status === 'completed';
+
+                      return (
+                        <div key={inq.id} className={`inquiry-item-card ${isCompleted ? 'is-completed' : ''}`}>
+                          <div className="inquiry-card-header">
+                            <div className="inquiry-cat-badge" style={{ backgroundColor: meta.bg, color: meta.color }}>
+                              <Icon size={14} />
+                              <span>{meta.label}</span>
+                            </div>
+
+                            {inq.targetWord && (
+                              <div className="inquiry-word-badge">
+                                対象単語: <strong>{inq.targetWord}</strong>
+                              </div>
                             )}
-                          </button>
 
-                          <button
-                            className="inquiry-delete-btn"
-                            onClick={() => handleDeleteInquiry(inq.id)}
-                            title="このお問い合わせを削除"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                            <span className="inquiry-time">
+                              <Clock size={12} />
+                              {new Date(inq.createdAt).toLocaleString('ja-JP')}
+                            </span>
+                          </div>
+
+                          <div className="inquiry-message-body">
+                            {inq.message}
+                          </div>
+
+                          <div className="inquiry-card-footer">
+                            <div className="inquiry-user-info">
+                              <span className="inquiry-username">👤 {inq.user || 'ゲスト'}</span>
+                              {inq.email && (
+                                <a href={`mailto:${inq.email}`} className="inquiry-email-link">
+                                  <Mail size={13} />
+                                  {inq.email}
+                                </a>
+                              )}
+                            </div>
+
+                            <div className="inquiry-card-actions">
+                              <button
+                                className={`inquiry-status-btn ${isCompleted ? 'completed' : 'pending'}`}
+                                onClick={() => handleToggleStatus(inq.id)}
+                              >
+                                {isCompleted ? (
+                                  <>
+                                    <CheckCircle2 size={14} />
+                                    <span>対応完了</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Clock size={14} />
+                                    <span>未対応（クリックで完了）</span>
+                                  </>
+                                )}
+                              </button>
+
+                              <button
+                                className="inquiry-delete-btn"
+                                onClick={() => handleDeleteInquiry(inq.id)}
+                                title="このお問い合わせを削除"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
                         </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ================= タブ2: スマホOS割合・分析 ================= */}
+            {activeTab === 'analytics' && (
+              <div className="admin-tab-content">
+                <div className="os-analytics-section">
+                  <div className="analytics-card-main">
+                    <h4 className="analytics-section-title">
+                      <Smartphone size={18} className="text-primary" />
+                      <span>スマートフォン OS利用比率（集計結果）</span>
+                    </h4>
+                    <p className="analytics-subtitle">
+                      登録ユーザーのアカウント情報および事前アンケートの回答からリアルタイムに自動集計しています。
+                    </p>
+
+                    {/* ビジュアルプログレスバー */}
+                    <div className="os-ratio-visual-bar">
+                      <div
+                        className="os-bar-segment ios-segment"
+                        style={{ width: `${iosPercent}%` }}
+                        title={`iOS: ${iosPercent}%`}
+                      >
+                        {iosPercent > 10 && <span>iOS {iosPercent}%</span>}
+                      </div>
+                      <div
+                        className="os-bar-segment android-segment"
+                        style={{ width: `${androidPercent}%` }}
+                        title={`Android: ${androidPercent}%`}
+                      >
+                        {androidPercent > 10 && <span>Android {androidPercent}%</span>}
+                      </div>
+                      {otherPercent > 0 && (
+                        <div
+                          className="os-bar-segment other-segment"
+                          style={{ width: `${otherPercent}%` }}
+                          title={`PC/その他: ${otherPercent}%`}
+                        >
+                          {otherPercent > 8 && <span>他 {otherPercent}%</span>}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* OS詳細カードグリッド */}
+                    <div className="os-detail-cards-grid">
+                      <div className="os-detail-card ios-card">
+                        <div className="os-card-top">
+                          <div className="os-icon-apple">🍏</div>
+                          <span className="os-name">iOS (iPhone / iPad)</span>
+                        </div>
+                        <div className="os-stat-big">{iosPercent}%</div>
+                        <div className="os-count-label">{displayIosCount} ユーザー</div>
+                        <p className="os-insight">
+                          日本の高校生において圧倒的なシェア。App Storeでの配信優先度: <strong>最重要</strong>
+                        </p>
+                      </div>
+
+                      <div className="os-detail-card android-card">
+                        <div className="os-card-top">
+                          <div className="os-icon-android">🤖</div>
+                          <span className="os-name">Android (Galaxy / Pixel等)</span>
+                        </div>
+                        <div className="os-stat-big">{androidPercent}%</div>
+                        <div className="os-count-label">{displayAndroidCount} ユーザー</div>
+                        <p className="os-insight">
+                          アプリロック・常駐バックグラウンド制御がフル機能で利用可能。Google Play版。
+                        </p>
+                      </div>
+
+                      <div className="os-detail-card other-card">
+                        <div className="os-card-top">
+                          <div className="os-icon-pc">💻</div>
+                          <span className="os-name">PC / その他ブラウザ</span>
+                        </div>
+                        <div className="os-stat-big">{otherPercent}%</div>
+                        <div className="os-count-label">{displayOtherCount} ユーザー</div>
+                        <p className="os-insight">
+                          PCやタブレットからのWeb版利用。キーボードショートカット対応。
+                        </p>
                       </div>
                     </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ================= タブ2: スマホOS割合・分析 ================= */}
-        {activeTab === 'analytics' && (
-          <div className="admin-tab-content">
-            <div className="os-analytics-section">
-              <div className="analytics-card-main">
-                <h4 className="analytics-section-title">
-                  <Smartphone size={18} className="text-primary" />
-                  <span>スマートフォン OS利用比率（集計結果）</span>
-                </h4>
-                <p className="analytics-subtitle">
-                  登録ユーザーのアカウント情報および事前アンケートの回答からリアルタイムに自動集計しています。
-                </p>
-
-                {/* ビジュアルプログレスバー */}
-                <div className="os-ratio-visual-bar">
-                  <div
-                    className="os-bar-segment ios-segment"
-                    style={{ width: `${iosPercent}%` }}
-                    title={`iOS: ${iosPercent}%`}
-                  >
-                    {iosPercent > 10 && <span>iOS {iosPercent}%</span>}
                   </div>
-                  <div
-                    className="os-bar-segment android-segment"
-                    style={{ width: `${androidPercent}%` }}
-                    title={`Android: ${androidPercent}%`}
-                  >
-                    {androidPercent > 10 && <span>Android {androidPercent}%</span>}
+
+                  {/* 開発戦略インサイト */}
+                  <div className="strategy-insight-card">
+                    <h4 className="insight-title">💡 モバイルアプリ開発＆リリース戦略の指針</h4>
+                    <ul className="insight-list">
+                      <li>
+                        <strong>Android版:</strong> すでに完成しているFlutterベースのアプリで、YouTubeやSNSの起動を検知して強制ロック・クイズ割り込みが完全に機能します。
+                      </li>
+                      <li>
+                        <strong>iOS版:</strong> iOSのサンドボックス制限に対応するため、Webプッシュ通知およびスクリーンタイムAPIとの連携によるリマインダー通知を主軸に展開します。
+                      </li>
+                      <li>
+                        <strong>Web版:</strong> 無料公開で誰でもすぐに爆速暗記でき、アプリ版への強力な導線（マーケティングファネル）として機能します。
+                      </li>
+                    </ul>
                   </div>
-                  {otherPercent > 0 && (
-                    <div
-                      className="os-bar-segment other-segment"
-                      style={{ width: `${otherPercent}%` }}
-                      title={`PC/その他: ${otherPercent}%`}
-                    >
-                      {otherPercent > 8 && <span>他 {otherPercent}%</span>}
+                </div>
+              </div>
+            )}
+
+            {/* ================= タブ3: 登録アカウント一覧 ================= */}
+            {activeTab === 'accounts' && (
+              <div className="admin-tab-content">
+                <div className="accounts-list-wrap">
+                  <div className="accounts-header-row">
+                    <h4>登録済みユーザー ({accountList.length}人)</h4>
+                    <button className="admin-btn-secondary" onClick={loadData}>
+                      <RefreshCw size={14} />
+                      <span>更新</span>
+                    </button>
+                  </div>
+
+                  {accountList.length === 0 ? (
+                    <div className="empty-inquiries-box">
+                      <Users size={36} className="empty-icon" />
+                      <h4>登録済みのアカウントはまだありません</h4>
+                      <p>ホーム画面上部の「ログイン」ボタンから新規登録が行われると、ここに自動的に反映されます。</p>
+                    </div>
+                  ) : (
+                    <div className="accounts-table-container">
+                      <table className="admin-table">
+                        <thead>
+                          <tr>
+                            <th>ニックネーム</th>
+                            <th>メールアドレス</th>
+                            <th>利用スマホOS</th>
+                            <th>累計EXP</th>
+                            <th>連続日数</th>
+                            <th>登録日時</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {accountList.map((acc, index) => (
+                            <tr key={index}>
+                              <td>
+                                <div className="table-user-cell">
+                                  <span className="table-avatar">{acc.avatar || '🎓'}</span>
+                                  <span className="table-username">{acc.name}</span>
+                                </div>
+                              </td>
+                              <td className="table-email">{acc.email}</td>
+                              <td>
+                                <span className={`table-os-badge ${acc.smartphoneOs ? acc.smartphoneOs.toLowerCase() : 'none'}`}>
+                                  {acc.smartphoneOs || '未設定'}
+                                </span>
+                              </td>
+                              <td className="table-num">
+                                <Zap size={13} className="text-warning" />
+                                {acc.progress?.totalExp || 0}
+                              </td>
+                              <td className="table-num">
+                                <Flame size={13} className="text-danger" />
+                                {acc.progress?.streak || 0}日
+                              </td>
+                              <td className="table-date">
+                                {acc.registeredAt ? new Date(acc.registeredAt).toLocaleDateString('ja-JP') : '-'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>
-
-                {/* OS詳細カードグリッド */}
-                <div className="os-detail-cards-grid">
-                  <div className="os-detail-card ios-card">
-                    <div className="os-card-top">
-                      <div className="os-icon-apple">🍏</div>
-                      <span className="os-name">iOS (iPhone / iPad)</span>
-                    </div>
-                    <div className="os-stat-big">{iosPercent}%</div>
-                    <div className="os-count-label">{displayIosCount} ユーザー</div>
-                    <p className="os-insight">
-                      日本の高校生において圧倒的なシェア。App Storeでの配信優先度: <strong>最重要</strong>
-                    </p>
-                  </div>
-
-                  <div className="os-detail-card android-card">
-                    <div className="os-card-top">
-                      <div className="os-icon-android">🤖</div>
-                      <span className="os-name">Android (Galaxy / Pixel等)</span>
-                    </div>
-                    <div className="os-stat-big">{androidPercent}%</div>
-                    <div className="os-count-label">{displayAndroidCount} ユーザー</div>
-                    <p className="os-insight">
-                      アプリロック・常駐バックグラウンド制御がフル機能で利用可能。Google Play版。
-                    </p>
-                  </div>
-
-                  <div className="os-detail-card other-card">
-                    <div className="os-card-top">
-                      <div className="os-icon-pc">💻</div>
-                      <span className="os-name">PC / その他ブラウザ</span>
-                    </div>
-                    <div className="os-stat-big">{otherPercent}%</div>
-                    <div className="os-count-label">{displayOtherCount} ユーザー</div>
-                    <p className="os-insight">
-                      PCやタブレットからのWeb版利用。キーボードショートカット対応。
-                    </p>
-                  </div>
-                </div>
               </div>
-
-              {/* 開発戦略インサイト */}
-              <div className="strategy-insight-card">
-                <h4 className="insight-title">💡 モバイルアプリ開発＆リリース戦略の指針</h4>
-                <ul className="insight-list">
-                  <li>
-                    <strong>Android版:</strong> すでに完成しているFlutterベースのアプリで、YouTubeやSNSの起動を検知して強制ロック・クイズ割り込みが完全に機能します。
-                  </li>
-                  <li>
-                    <strong>iOS版:</strong> iOSのサンドボックス制限に対応するため、Webプッシュ通知およびスクリーンタイムAPIとの連携によるリマインダー通知を主軸に展開します。
-                  </li>
-                  <li>
-                    <strong>Web版:</strong> 無料公開で誰でもすぐに爆速暗記でき、アプリ版への強力な導線（マーケティングファネル）として機能します。
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ================= タブ3: 登録アカウント一覧 ================= */}
-        {activeTab === 'accounts' && (
-          <div className="admin-tab-content">
-            <div className="accounts-list-wrap">
-              <div className="accounts-header-row">
-                <h4>登録済みユーザー ({accountList.length}人)</h4>
-                <button className="admin-btn-secondary" onClick={loadData}>
-                  <RefreshCw size={14} />
-                  <span>更新</span>
-                </button>
-              </div>
-
-              {accountList.length === 0 ? (
-                <div className="empty-inquiries-box">
-                  <Users size={36} className="empty-icon" />
-                  <h4>登録済みのアカウントはまだありません</h4>
-                  <p>ホーム画面上部の「ログイン」ボタンから新規登録が行われると、ここに自動的に反映されます。</p>
-                </div>
-              ) : (
-                <div className="accounts-table-container">
-                  <table className="admin-table">
-                    <thead>
-                      <tr>
-                        <th>ニックネーム</th>
-                        <th>メールアドレス</th>
-                        <th>利用スマホOS</th>
-                        <th>累計EXP</th>
-                        <th>連続日数</th>
-                        <th>登録日時</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {accountList.map((acc, index) => (
-                        <tr key={index}>
-                          <td>
-                            <div className="table-user-cell">
-                              <span className="table-avatar">{acc.avatar || '🎓'}</span>
-                              <span className="table-username">{acc.name}</span>
-                            </div>
-                          </td>
-                          <td className="table-email">{acc.email}</td>
-                          <td>
-                            <span className={`table-os-badge ${acc.smartphoneOs ? acc.smartphoneOs.toLowerCase() : 'none'}`}>
-                              {acc.smartphoneOs || '未設定'}
-                            </span>
-                          </td>
-                          <td className="table-num">
-                            <Zap size={13} className="text-warning" />
-                            {acc.progress?.totalExp || 0}
-                          </td>
-                          <td className="table-num">
-                            <Flame size={13} className="text-danger" />
-                            {acc.progress?.streak || 0}日
-                          </td>
-                          <td className="table-date">
-                            {acc.registeredAt ? new Date(acc.registeredAt).toLocaleDateString('ja-JP') : '-'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            )}
           </div>
         )}
       </div>

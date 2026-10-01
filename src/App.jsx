@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import ModeSelect from './components/ModeSelect';
 import QuizView from './components/QuizView';
@@ -35,17 +35,54 @@ export default function App() {
   const [contactInitialWord, setContactInitialWord] = useState('');
   const [contactInitialCategory, setContactInitialCategory] = useState('word_typo');
 
+  // 管理者画面の隠しシークレットタップカウンター
+  const adminSecretClicksRef = useRef(0);
+  const adminSecretTimerRef = useRef(null);
+
   // 問題数の変更・保存
   const handleSetQuestionCount = (count) => {
     setQuestionCountState(count);
     storage.saveQuestionCount(count);
   };
 
-  // テーマ適用
+  // テーマ適用 & URLパラメータによる管理者起動の監視 (?admin=true または ?admin=1 または #admin)
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     storage.saveTheme(theme);
+
+    // URLによるシークレット管理者起動チェック
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('admin') === 'true' || urlParams.get('admin') === '1' || window.location.hash === '#admin') {
+      setIsAdminOpen(true);
+    }
   }, [theme]);
+
+  // キーボードショートカット（Ctrl + Shift + A）で管理者画面を起動
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+        e.preventDefault();
+        setIsAdminOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // フッター著作権表記を5回連続タップでシークレット起動
+  const handleSecretAdminTrigger = () => {
+    adminSecretClicksRef.current += 1;
+    if (adminSecretTimerRef.current) clearTimeout(adminSecretTimerRef.current);
+
+    if (adminSecretClicksRef.current >= 5) {
+      adminSecretClicksRef.current = 0;
+      setIsAdminOpen(true);
+    } else {
+      adminSecretTimerRef.current = setTimeout(() => {
+        adminSecretClicksRef.current = 0;
+      }, 2500);
+    }
+  };
 
   // 単語抽出ヘルパー（指定問題数でシャッフル抽出 & 4択選択肢を自動生成）
   const getFilteredWords = (catId, count = questionCount) => {
@@ -108,7 +145,6 @@ export default function App() {
         setIsMuted={setIsMuted}
         onOpenAuth={() => setIsAuthOpen(true)}
         onOpenContact={handleOpenGeneralContact}
-        onOpenAdmin={() => setIsAdminOpen(true)}
         currentTab={currentView}
         setCurrentTab={(tab) => setCurrentView(tab)}
       />
@@ -165,17 +201,19 @@ export default function App() {
         )}
       </main>
 
-      {/* フッター */}
+      {/* フッター（一般ユーザー向けリンクのみ表示・著作権表記5回タップで秘密裏に管理者起動） */}
       <footer className="app-footer">
         <div className="footer-inner">
-          <p>© 2026 苦しんで覚える英単語 Web版. 高校生特化 爆速4択英単語暗記</p>
+          <p
+            className="secret-admin-trigger-text"
+            onClick={handleSecretAdminTrigger}
+            title="苦しんで覚える英単語"
+          >
+            © 2026 苦しんで覚える英単語 Web版. 高校生特化 爆速4択英単語暗記
+          </p>
           <div className="footer-links">
             <button className="footer-link contact-link-highlight" onClick={handleOpenGeneralContact}>
               📩 お問い合わせ・ご意見箱
-            </button>
-            <span className="dot-sep">•</span>
-            <button className="footer-link admin-link-highlight" onClick={() => setIsAdminOpen(true)}>
-              📊 管理者ダッシュボード（問合せ＆OS確認）
             </button>
             <span className="dot-sep">•</span>
             <button className="footer-link" onClick={() => setIsAuthOpen(true)}>
@@ -209,7 +247,7 @@ export default function App() {
         initialWord={contactInitialWord}
       />
 
-      {/* 管理者ダッシュボードモーダル（お問い合わせ一覧＆OS比率確認） */}
+      {/* 管理者専用ダッシュボードモーダル（秘密裏に起動 & パスワード保護） */}
       <AdminDashboardModal
         isOpen={isAdminOpen}
         onClose={() => setIsAdminOpen(false)}
