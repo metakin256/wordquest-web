@@ -57,15 +57,46 @@ export default function ResultModal({
           </div>
         </div>
 
-        {/* 復習対象単語リスト */}
+        {/* 間違えた単語まとめ & 今回の単語一覧 */}
         {words && words.length > 0 && (
           <div className="result-words-summary">
-            <h4 className="summary-list-title">今回出題された単語</h4>
+            {resultData.mistakes && resultData.mistakes.length > 0 ? (
+              <div className="mistake-summary-banner">
+                <h4 className="summary-list-title mistake-title">
+                  <RotateCcw size={16} className="text-warning" />
+                  <span>今回間違えた単語（{resultData.mistakes.length}語・ラストで復習済み）</span>
+                </h4>
+                <div className="result-words-list">
+                  {resultData.mistakes.map((w) => (
+                    <div key={w.id} className="result-word-item review">
+                      <div className="item-left">
+                        <button
+                          className="mini-speak-btn"
+                          onClick={() => sound.speak(w.word)}
+                        >
+                          <Volume2 size={14} />
+                        </button>
+                        <strong className="item-word">{w.word}</strong>
+                        <span className="item-meaning">{w.meaning}</span>
+                      </div>
+                      <span className="item-badge review-badge">要復習 (次回も出題)</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="perfect-badge-banner">
+                <CheckCircle2 size={20} className="text-success" />
+                <span>全問一発正解！素晴らしい集中力です！</span>
+              </div>
+            )}
+
+            <h4 className="summary-list-title" style={{ marginTop: '1.25rem' }}>全出題単語 ({words.length}語)</h4>
             <div className="result-words-list">
               {words.map((w) => {
-                const isMastered = masteredIds.includes(w.id);
+                const wasWrong = (resultData.mistakes || []).some(m => m.id === w.id);
                 return (
-                  <div key={w.id} className={`result-word-item ${isMastered ? 'mastered' : 'review'}`}>
+                  <div key={w.id} className={`result-word-item ${!wasWrong ? 'mastered' : 'review'}`}>
                     <div className="item-left">
                       <button
                         className="mini-speak-btn"
@@ -76,7 +107,7 @@ export default function ResultModal({
                       <strong className="item-word">{w.word}</strong>
                       <span className="item-meaning">{w.meaning}</span>
                     </div>
-                    <span className="item-badge">{isMastered ? 'マスター' : '要復習'}</span>
+                    <span className="item-badge">{!wasWrong ? '正解' : '要復習'}</span>
                   </div>
                 );
               })}

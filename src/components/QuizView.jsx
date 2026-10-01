@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Volume2, ArrowLeft, Check, X, Sparkles, HelpCircle, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Volume2, ArrowLeft, Check, X, Sparkles, HelpCircle, ArrowRight, RotateCcw, Flame } from 'lucide-react';
 import { sound } from '../services/sound';
 
 export default function QuizView({
@@ -7,98 +7,158 @@ export default function QuizView({
   onComplete,
   onBack,
 }) {
+  // words: 初期の出題単語リスト
+  const [quizQueue, setQuizQueue] = useState(words); // 現在の出題キュー
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [isAnswered, setIsAnswered] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [score, setScore] = useState(0);
+  
+  // 間違えた単語の追跡（ラストにまとめる用）
+  const [mistakeWords, setMistakeWords] = useState([]);
+  const [isRevengeRound, setIsRevengeRound] = useState(false);
+  
+  // 全回答履歴
   const [answeredResults, setAnsweredResults] = useState([]); // [{ wordId, isCorrect }]
-  const [showTip, setShowTip] = useState(false);
+  
+  // 自動送りタイマー
+  const autoNextTimerRef = useRef(null);
 
-  const currentWord = words[currentIndex] || words[0];
+  const currentWord = quizQueue[currentIndex] || quizQueue[0];
 
-  // 単語切り替え時に自動発音（オプション）
+  // 単語切り替え時に自動発音 & 状態リセット
   useEffect(() => {
     if (currentWord) {
       sound.speak(currentWord.word);
       setSelectedAnswer(null);
       setIsAnswered(false);
-      setShowTip(false);
     }
+    return () => {
+      if (autoNextTimerRef.current) clearTimeout(autoNextTimerRef.current);
+    };
   }, [currentIndex, currentWord]);
 
-  // 回答処理
+  // 次の問題へ進む処理
+  const proceedToNext = useCallback(() => {
+    if (autoNextTimerRef.current) clearTimeout(autoNextTimerRef.current);
+
+    if (currentIndex + 1 < quizQueue.length) {
+      setCurrentIndex(prev => prev + 1);
+    } else {
+      // 現在のキューが終了
+      if (!isRevengeRound && mistakeWords.length > 0) {
+        // 通常ラウンド終了 & 間違えた問題がある場合 -> ラストにまとめて再出題！
+        setIsRevengeRound(true);
+        setQuizQueue([...mistakeWords]);
+        setCurrentIndex(0);
+        setSelectedAnswer(null);
+        setIsAnswered(false);
+        sound.playCorrect(); // リベンジ突入効果音
+      } else {
+        // 全問（リベンジ含む）終了
+        const earnedExp = score * 20 + 50;
+        onComplete({
+          total: words.length,
+          correctCount: score,
+          earnedExp,
+          answeredWordResults: answeredResults,
+          words,
+          mistakes: mistakeWords,
+        });
+      }
+    }
+  }, [currentIndex, quizQueue, isRevengeRound, mistakeWords, score, words, answeredResults, onComplete]);
+
+  // 回答処理（選択した瞬間に正誤判定 ＆ すぐ次の問題へ）
   const handleAnswer = useCallback((optionText) => {
-    if (isAnswered) return;
+    if (isAnswered || !currentWord) return;
 
     const correct = optionText === currentWord.meaning;
     setSelectedAnswer(optionText);
     setIsAnswered(true);
     setIsCorrect(correct);
 
+    // 履歴に追加
     setAnsweredResults(prev => [...prev, { wordId: currentWord.id, isCorrect: correct }]);
 
     if (correct) {
       sound.playCorrect();
-      setScore(prev => prev + 1);
+      if (!isRevengeRound) {
+        setScore(prev => prev + 1);
+      }
+      // 正解時：約0.38秒で超爆速自動送り
+      autoNextTimerRef.current = setTimeout(() => {
+        proceedToNext();
+      }, 380);
     } else {
       sound.playIncorrect();
+      // 初回ラウンドで間違えた場合、ラスト復習リストに追加
+      if (!isRevengeRound) {
+        setMistakeWords(prev => {
+          if (prev.some(w => w.id === currentWord.id)) return prev;
+          return [...prev, currentWord];
+        });
+      }
+      // 不正解時：約0.9秒（正解の意味を確認できる時間）で自動送り（タップで即スキップ可）
+      autoNextTimerRef.current = setTimeout(() => {
+        proceedToNext();
+      }, 950);
     }
-  }, [isAnswered, currentWord]);
+  }, [isAnswered, currentWord, isRevengeRound, proceedToNext]);
 
-  // 次の問題へ
-  const handleNext = useCallback(() => {
-    if (currentIndex + 1 < words.length) {
-      setCurrentIndex(prev => prev + 1);
-    } else {
-      // 終了
-      const earnedExp = score * 20 + 30; // 基本EXP + ボーナス
-      onComplete({
-        total: words.length,
-        correctCount: score,
-        earnedExp,
-        answeredWordResults: answeredResults,
-        words,
-      });
-    }
-  }, [currentIndex, words, score, answeredResults, onComplete]);
-
-
-  // キーボードショートカット（1〜4キーで解答、Enter/Spaceで次へ）
+  // キーボードショートカット（1〜4キーで解答、Enter/Spaceで即次へ）
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (['1', '2', '3', '4'].includes(e.key) && !isAnswered) {
         const optionIndex = parseInt(e.key, 10) - 1;
-        if (currentWord.options && currentWord.options[optionIndex]) {
+        if (currentWord?.options && currentWord.options[optionIndex]) {
           handleAnswer(currentWord.options[optionIndex]);
         }
       } else if ((e.key === 'Enter' || e.key === ' ') && isAnswered) {
         e.preventDefault();
-        handleNext();
+        proceedToNext();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isAnswered, currentWord, handleAnswer, handleNext]);
+  }, [isAnswered, currentWord, handleAnswer, proceedToNext]);
 
-  const progressPercent = ((currentIndex + 1) / words.length) * 100;
+  if (!currentWord) return null;
+
+  const totalQuestions = quizQueue.length;
+  const progressPercent = ((currentIndex + 1) / totalQuestions) * 100;
 
   return (
     <div className="quiz-view-container">
+      {/* リベンジラウンド告知バナー（間違えた問題のラストまとめ出題時） */}
+      {isRevengeRound && (
+        <div className="revenge-banner">
+          <div className="revenge-badge">
+            <RotateCcw size={16} className="spin-icon" />
+            <span>ラスト復習ラウンド突入！</span>
+          </div>
+          <p className="revenge-desc">間違えた {mistakeWords.length} 単語をまとめて再出題中。全問正解で完全習得！</p>
+        </div>
+      )}
+
       {/* 上部ヘッダー */}
       <div className="quiz-top-bar">
         <button className="back-btn" onClick={onBack}>
           <ArrowLeft size={18} />
-          <span>中断する</span>
+          <span>中断</span>
         </button>
 
         <div className="quiz-progress-info">
           <span className="quiz-count">
-            Question <strong>{currentIndex + 1}</strong> / {words.length}
+            {isRevengeRound ? '復習' : 'Question'} <strong>{currentIndex + 1}</strong> / {totalQuestions}
           </span>
           <div className="quiz-track">
-            <div className="quiz-fill" style={{ width: `${progressPercent}%` }}></div>
+            <div
+              className={`quiz-fill ${isRevengeRound ? 'revenge-fill' : ''}`}
+              style={{ width: `${progressPercent}%` }}
+            ></div>
           </div>
         </div>
 
@@ -109,10 +169,19 @@ export default function QuizView({
       </div>
 
       {/* クイズカード本体 */}
-      <div className={`quiz-main-card ${isAnswered ? (isCorrect ? 'answered-correct' : 'answered-incorrect') : ''}`}>
+      <div
+        className={`quiz-main-card ${isAnswered ? (isCorrect ? 'answered-correct' : 'answered-incorrect') : ''}`}
+        onClick={() => {
+          // 回答済みの時にカードをクリックすると即時スキップして次へ
+          if (isAnswered) proceedToNext();
+        }}
+      >
         <div className="quiz-card-header">
           <span className="quiz-level-badge">{currentWord.level || 'A2'}</span>
           <span className="quiz-pos-badge">{currentWord.partOfSpeech}</span>
+          {isRevengeRound && (
+            <span className="revenge-pill">要復習単語</span>
+          )}
         </div>
 
         {/* 英単語表示 */}
@@ -122,7 +191,10 @@ export default function QuizView({
             <span className="phonetic-text">{currentWord.phonetic}</span>
             <button
               className="speak-btn-large"
-              onClick={() => sound.speak(currentWord.word)}
+              onClick={(e) => {
+                e.stopPropagation();
+                sound.speak(currentWord.word);
+              }}
               title="発音を聞く"
             >
               <Volume2 size={20} />
@@ -130,17 +202,11 @@ export default function QuizView({
           </div>
         </div>
 
-        {/* 例文（回答後にハイライト表示） */}
+        {/* 例文（回答後に表示） */}
         {isAnswered && (
           <div className="example-reveal-box">
             <p className="example-en">"{currentWord.exampleEn}"</p>
             <p className="example-ja">{currentWord.exampleJa}</p>
-            {currentWord.tip && (
-              <p className="example-tip">
-                <HelpCircle size={14} />
-                {currentWord.tip}
-              </p>
-            )}
           </div>
         )}
 
@@ -161,7 +227,10 @@ export default function QuizView({
               <button
                 key={idx}
                 className={optionClass}
-                onClick={() => handleAnswer(option)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAnswer(option);
+                }}
                 disabled={isAnswered}
               >
                 <span className="key-shortcut-badge">{idx + 1}</span>
@@ -173,7 +242,7 @@ export default function QuizView({
           })}
         </div>
 
-        {/* 回答後の次へ進むフッターバー */}
+        {/* 回答後のクイック通知バー */}
         {isAnswered && (
           <div className="quiz-next-bar">
             <div className="answer-feedback-text">
@@ -183,22 +252,28 @@ export default function QuizView({
                 </span>
               ) : (
                 <span className="feedback-badge wrong">
-                  <X size={18} /> 不正解（復習リストに追加）
+                  <X size={18} /> 不正解（ラストに再出題されます）
                 </span>
               )}
             </div>
 
-            <button className="next-question-btn" onClick={handleNext}>
-              <span>{currentIndex + 1 === words.length ? '結果を見る' : '次の問題へ [Enter]'}</span>
+            <button
+              className="next-question-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                proceedToNext();
+              }}
+            >
+              <span>すぐ次へ [Enter]</span>
               <ArrowRight size={18} />
             </button>
           </div>
         )}
       </div>
 
-      {/* キーボードガイド */}
+      {/* キーボード & 操作ガイド */}
       <div className="keyboard-guide">
-        <span>💡 キーボードの <strong>[1〜4]</strong> キーで解答、<strong>[Enter]</strong> または <strong>[Space]</strong> で次へ進めます</span>
+        <span>⚡ <strong>爆速オート進行中</strong>：解答後すぐ次の問題へ進みます（タップで即スキップ可）</span>
       </div>
     </div>
   );

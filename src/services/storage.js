@@ -216,5 +216,19 @@ export const storage = {
 
   saveTheme(theme) {
     localStorage.setItem(STORAGE_KEYS.THEME, theme);
+  },
+
+  // 問題数カスタム設定
+  getQuestionCount() {
+    try {
+      const val = localStorage.getItem('wordquest_question_count');
+      return val ? parseInt(val, 10) : 10;
+    } catch {
+      return 10;
+    }
+  },
+
+  saveQuestionCount(count) {
+    localStorage.setItem('wordquest_question_count', count.toString());
   }
 };

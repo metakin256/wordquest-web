@@ -16,6 +16,7 @@ export default function App() {
   const [user, setUser] = useState(() => storage.getUser());
   const [progress, setProgress] = useState(() => storage.getProgress());
   const [isMuted, setIsMuted] = useState(false);
+  const [questionCount, setQuestionCountState] = useState(() => storage.getQuestionCount());
 
   // 画面状態: 'home' | 'quiz' | 'result' | 'ranking' | 'wordlist'
   const [currentView, setCurrentView] = useState('home');
@@ -26,14 +27,20 @@ export default function App() {
   // ログイン・登録モーダル
   const [isAuthOpen, setIsAuthOpen] = useState(false);
 
-  // テーマ適用
+  // 問題数の変更・保存
+  const handleSetQuestionCount = (count) => {
+    setQuestionCountState(count);
+    storage.saveQuestionCount(count);
+  };
+
+  // テーマ適用 & サボり防止リマインダー定期チェック
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     storage.saveTheme(theme);
   }, [theme]);
 
-  // 単語抽出ヘルパー（シャッフルして8問抽出 & 4択選択肢を自動生成）
-  const getFilteredWords = (catId, count = 8) => {
+  // 単語抽出ヘルパー（指定問題数でシャッフル抽出 & 4択選択肢を自動生成）
+  const getFilteredWords = (catId, count = questionCount) => {
     let pool = catId === 'all'
       ? [...WORDS_DATABASE]
       : WORDS_DATABASE.filter(w => w.category === catId);
@@ -49,8 +56,8 @@ export default function App() {
   };
 
   // 4択テスト開始
-  const handleStartQuiz = (catId) => {
-    const words = getFilteredWords(catId, 8);
+  const handleStartQuiz = (catId, count = questionCount) => {
+    const words = getFilteredWords(catId, count);
     setSessionWords(words);
     setSelectedCategory(catId);
     setCurrentView('quiz');
@@ -90,6 +97,8 @@ export default function App() {
             progress={progress}
             selectedCategory={selectedCategory}
             setSelectedCategory={setSelectedCategory}
+            questionCount={questionCount}
+            setQuestionCount={handleSetQuestionCount}
             onStartQuiz={handleStartQuiz}
             onOpenWordList={() => setCurrentView('wordlist')}
             onOpenRanking={() => setCurrentView('ranking')}
@@ -109,7 +118,7 @@ export default function App() {
           <ResultModal
             resultData={lastResult}
             onRetry={() => {
-              handleStartQuiz(selectedCategory);
+              handleStartQuiz(selectedCategory, questionCount);
             }}
             onGoHome={() => setCurrentView('home')}
             onOpenRanking={() => setCurrentView('ranking')}

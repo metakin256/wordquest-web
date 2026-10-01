@@ -1,21 +1,50 @@
-import React from 'react';
-import { Play, CheckCircle2, RotateCcw, Trophy, ArrowRight, Sparkles, UserPlus, ShieldCheck } from 'lucide-react';
+import React, { useState } from 'react';
+import { Play, CheckCircle2, RotateCcw, Trophy, ArrowRight, Sparkles, Bell, BellRing, Settings2, Sliders, Check } from 'lucide-react';
 import { WORD_CATEGORIES, WORDS_DATABASE } from '../data/words';
+import { notificationService } from '../services/notification';
 
 export default function ModeSelect({
   user,
   progress,
   selectedCategory,
   setSelectedCategory,
+  questionCount,
+  setQuestionCount,
   onStartQuiz,
   onOpenWordList,
   onOpenRanking,
   onOpenAuth,
 }) {
+  const [notifPermission, setNotifPermission] = useState(() => notificationService.getPermission());
+  const [testNotifSent, setTestNotifSent] = useState(false);
+
   const totalWordsCount = WORDS_DATABASE.length;
   const masteredCount = (progress.masteredWordIds || []).length;
   const reviewCount = (progress.reviewWordIds || []).length;
   const progressPercent = Math.min(100, Math.round((masteredCount / totalWordsCount) * 100));
+
+  const questionCountOptions = [
+    { count: 5, label: '5問', desc: '1分超爆速' },
+    { count: 10, label: '10問', desc: '標準' },
+    { count: 20, label: '20問', desc: 'おすすめ' },
+    { count: 30, label: '30問', desc: '集中特訓' },
+    { count: 50, label: '50問', desc: 'ガチ暗記' },
+  ];
+
+  const handleEnableNotification = async () => {
+    const granted = await notificationService.requestPermission();
+    setNotifPermission(granted ? 'granted' : 'denied');
+  };
+
+  const handleSendTestNotification = () => {
+    if (notifPermission !== 'granted') {
+      handleEnableNotification();
+      return;
+    }
+    notificationService.sendTestReminder();
+    setTestNotifSent(true);
+    setTimeout(() => setTestNotifSent(false), 3000);
+  };
 
   return (
     <div className="mode-select-container">
@@ -35,9 +64,9 @@ export default function ModeSelect({
           </p>
 
           <div className="hero-actions">
-            <button className="primary-cta-btn large" onClick={() => onStartQuiz('all')}>
+            <button className="primary-cta-btn large" onClick={() => onStartQuiz('all', questionCount)}>
               <Play size={22} fill="currentColor" />
-              <span>全範囲からテスト開始（4択）</span>
+              <span>全範囲から {questionCount}問 テスト開始</span>
             </button>
           </div>
         </div>
@@ -81,11 +110,76 @@ export default function ModeSelect({
         </div>
       </section>
 
+      {/* 🎯 出題問題数カスタム設定バー */}
+      <section className="question-count-section">
+        <div className="question-count-card">
+          <div className="q-count-header">
+            <div className="q-count-title-group">
+              <Sliders size={18} className="text-primary" />
+              <span className="q-count-title">出題問題数のカスタム設定</span>
+            </div>
+            <span className="q-count-current">現在: <strong>{questionCount}問</strong> ずつ出題</span>
+          </div>
+
+          <div className="q-count-options-grid">
+            {questionCountOptions.map((opt) => (
+              <button
+                key={opt.count}
+                className={`q-count-btn ${questionCount === opt.count ? 'active' : ''}`}
+                onClick={() => setQuestionCount(opt.count)}
+              >
+                <span className="q-count-num">{opt.label}</span>
+                <span className="q-count-desc">{opt.desc}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 🔔 さぼり防止 Webプッシュ通知（ブラウザ通知）設定カード */}
+      <section className="notification-control-section">
+        <div className="notif-control-card">
+          <div className="notif-card-left">
+            <div className="notif-icon-wrap">
+              <BellRing size={24} className="bell-glow" />
+            </div>
+            <div className="notif-text-wrap">
+              <h3 className="notif-title">🔥 スマホ/PC さぼり防止通知（ブラウザ通知）</h3>
+              <p className="notif-desc">
+                LINEを使わずに、ブラウザから直接スマホの画面やデスクトップへ「さぼり警告リマインダー」をお届けします。
+              </p>
+            </div>
+          </div>
+
+          <div className="notif-card-actions">
+            {notifPermission === 'granted' ? (
+              <div className="notif-status-badge">
+                <Check size={16} className="text-success" />
+                <span>通知許可済み</span>
+              </div>
+            ) : (
+              <button className="enable-notif-btn" onClick={handleEnableNotification}>
+                <Bell size={16} />
+                <span>通知を有効にする</span>
+              </button>
+            )}
+
+            <button
+              className="test-notif-btn"
+              onClick={handleSendTestNotification}
+              title="実際にさぼり通知が届くかテストします"
+            >
+              <span>{testNotifSent ? '通知を送信しました！' : '🧪 テスト通知を送る'}</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* レベル・カテゴリー選択 */}
       <section className="category-section">
         <div className="section-title-group">
-          <h2 className="section-title">レベルを選んで4択テスト</h2>
-          <p className="section-subtitle">各レベル約1,200語。自分の志望校や目標に合わせてステップアップ！</p>
+          <h2 className="section-title">レベルを選んで4択テスト（{questionCount}問）</h2>
+          <p className="section-subtitle">各レベル約1,200語。間違えた問題はラストにまとめて再出題されます！</p>
         </div>
 
         <div className="categories-grid">
@@ -99,7 +193,7 @@ export default function ModeSelect({
               <div
                 key={cat.id}
                 className={`category-card ${isSelected ? 'selected' : ''}`}
-                onClick={() => onStartQuiz(cat.id)}
+                onClick={() => onStartQuiz(cat.id, questionCount)}
               >
                 <div className="cat-card-top">
                   <span className="cat-level-pill" style={{ backgroundColor: `${cat.color}20`, color: cat.color }}>
@@ -114,11 +208,11 @@ export default function ModeSelect({
                   className="cat-action-btn-single"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onStartQuiz(cat.id);
+                    onStartQuiz(cat.id, questionCount);
                   }}
                 >
                   <Play size={15} fill="currentColor" />
-                  <span>このレベルでテスト</span>
+                  <span>このレベルで {questionCount}問テスト</span>
                   <ArrowRight size={14} className="cat-btn-arrow" />
                 </button>
               </div>
