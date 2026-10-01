@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import { storage } from '../services/storage';
 
-// 初期デモ用のお問い合わせデータ
+// 確認用デモデータ（「デモデータ投入」ボタンを押した時のみ追加される）
 const SAMPLE_INQUIRIES = [
   {
     id: 'inq_sample_1',
@@ -252,7 +252,7 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
     return matchCat && matchStatus && matchQuery;
   });
 
-  // OS統計の計算
+  // OS統計の計算（100% 実際の登録ユーザーデータのみを集計）
   const accountList = Object.values(accounts);
   let iosCount = 0;
   let androidCount = 0;
@@ -262,17 +262,15 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
     const os = (acc.smartphoneOs || '').toLowerCase();
     if (os.includes('ios') || os.includes('iphone')) iosCount++;
     else if (os.includes('android')) androidCount++;
-    else otherOsCount++;
+    else if (acc.smartphoneOs) otherOsCount++;
   });
 
-  const displayIosCount = accountList.length > 0 ? iosCount : 68;
-  const displayAndroidCount = accountList.length > 0 ? androidCount : 38;
-  const displayOtherCount = accountList.length > 0 ? otherOsCount : 8;
-  const displayTotalOs = displayIosCount + displayAndroidCount + displayOtherCount;
+  const totalRegistered = accountList.length;
+  const totalWithOs = iosCount + androidCount + otherOsCount;
 
-  const iosPercent = Math.round((displayIosCount / displayTotalOs) * 100);
-  const androidPercent = Math.round((displayAndroidCount / displayTotalOs) * 100);
-  const otherPercent = 100 - iosPercent - androidPercent;
+  const iosPercent = totalWithOs > 0 ? Math.round((iosCount / totalWithOs) * 100) : 0;
+  const androidPercent = totalWithOs > 0 ? Math.round((androidCount / totalWithOs) * 100) : 0;
+  const otherPercent = totalWithOs > 0 ? Math.max(0, 100 - iosPercent - androidPercent) : 0;
 
   const typoCount = inquiries.filter(i => i.category === 'word_typo').length;
   const requestCount = inquiries.filter(i => i.category === 'feature_request').length;
@@ -429,12 +427,25 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
                   <span className="metric-label">iOS / Android 比率</span>
                   <Smartphone size={16} className="text-success" />
                 </div>
-                <div className="metric-number">
-                  <span className="ios-text">{iosPercent}%</span> / <span className="android-text">{androidPercent}%</span>
-                </div>
-                <div className="metric-sub-detail">
-                  iOS: {displayIosCount}人 / Android: {displayAndroidCount}人
-                </div>
+                {totalRegistered === 0 ? (
+                  <>
+                    <div className="metric-number" style={{ fontSize: '1.2rem', color: 'var(--text-muted)' }}>
+                      0人 (未登録)
+                    </div>
+                    <div className="metric-sub-detail">
+                      ユーザー登録待ち
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="metric-number">
+                      <span className="ios-text">{iosPercent}%</span> / <span className="android-text">{androidPercent}%</span>
+                    </div>
+                    <div className="metric-sub-detail">
+                      iOS: {iosCount}人 / Android: {androidCount}人
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="admin-metric-card">
@@ -443,10 +454,10 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
                   <Users size={16} className="text-warning" />
                 </div>
                 <div className="metric-number">
-                  {accountList.length} <span className="metric-sub">人</span>
+                  {totalRegistered} <span className="metric-sub">人</span>
                 </div>
                 <div className="metric-sub-detail">
-                  クラウド同期ユーザー
+                  {totalRegistered === 0 ? '実登録者なし' : 'クラウド同期ユーザー'}
                 </div>
               </div>
             </div>
@@ -475,7 +486,7 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
                 onClick={() => setActiveTab('accounts')}
               >
                 <Users size={16} />
-                <span>登録ユーザー一覧 ({accountList.length})</span>
+                <span>登録ユーザー一覧 ({totalRegistered})</span>
               </button>
             </div>
 
@@ -520,12 +531,6 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
                   </div>
 
                   <div className="admin-action-buttons">
-                    {inquiries.length === 0 && (
-                      <button className="admin-btn-secondary" onClick={handleSeedDemoData} title="確認用デモデータを追加">
-                        <PlusCircle size={15} />
-                        <span>デモデータ投入</span>
-                      </button>
-                    )}
                     <button className="admin-btn-secondary" onClick={handleExportJSON} title="JSON形式でダウンロード">
                       <Download size={15} />
                       <span>エクスポート</span>
@@ -543,11 +548,11 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
                   {filteredInquiries.length === 0 ? (
                     <div className="empty-inquiries-box">
                       <MessageCircle size={40} className="empty-icon" />
-                      <h4>該当するお問い合わせはありません</h4>
-                      <p>右上の「デモデータ投入」ボタンを押すと、表示確認用のサンプルデータが追加されます。</p>
-                      <button className="admin-btn-primary" onClick={handleSeedDemoData}>
-                        <Sparkles size={16} />
-                        <span>デモデータを投入して確認する</span>
+                      <h4>現在お問い合わせはありません (0件)</h4>
+                      <p>ユーザーから単語ミス報告やご意見が送信されると、ここに即座にリアルタイム表示されます。</p>
+                      <button className="admin-btn-secondary" onClick={handleSeedDemoData} style={{ marginTop: '0.5rem' }}>
+                        <Sparkles size={15} />
+                        <span>動作確認用のテストデータを投入する</span>
                       </button>
                     </div>
                   ) : (
@@ -633,77 +638,84 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
                   <div className="analytics-card-main">
                     <h4 className="analytics-section-title">
                       <Smartphone size={18} className="text-primary" />
-                      <span>スマートフォン OS利用比率（集計結果）</span>
+                      <span>スマートフォン OS利用比率（実際の登録ユーザー集計）</span>
                     </h4>
                     <p className="analytics-subtitle">
-                      登録ユーザーのアカウント情報および事前アンケートの回答からリアルタイムに自動集計しています。
+                      ユーザーが新規アカウント登録時に選択した利用端末（iOS / Android）をリアルタイムに集計しています。
                     </p>
 
-                    {/* ビジュアルプログレスバー */}
-                    <div className="os-ratio-visual-bar">
-                      <div
-                        className="os-bar-segment ios-segment"
-                        style={{ width: `${iosPercent}%` }}
-                        title={`iOS: ${iosPercent}%`}
-                      >
-                        {iosPercent > 10 && <span>iOS {iosPercent}%</span>}
-                      </div>
-                      <div
-                        className="os-bar-segment android-segment"
-                        style={{ width: `${androidPercent}%` }}
-                        title={`Android: ${androidPercent}%`}
-                      >
-                        {androidPercent > 10 && <span>Android {androidPercent}%</span>}
-                      </div>
-                      {otherPercent > 0 && (
-                        <div
-                          className="os-bar-segment other-segment"
-                          style={{ width: `${otherPercent}%` }}
-                          title={`PC/その他: ${otherPercent}%`}
-                        >
-                          {otherPercent > 8 && <span>他 {otherPercent}%</span>}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* OS詳細カードグリッド */}
-                    <div className="os-detail-cards-grid">
-                      <div className="os-detail-card ios-card">
-                        <div className="os-card-top">
-                          <div className="os-icon-apple">🍏</div>
-                          <span className="os-name">iOS (iPhone / iPad)</span>
-                        </div>
-                        <div className="os-stat-big">{iosPercent}%</div>
-                        <div className="os-count-label">{displayIosCount} ユーザー</div>
-                        <p className="os-insight">
-                          日本の高校生において圧倒的なシェア。App Storeでの配信優先度: <strong>最重要</strong>
+                    {totalRegistered === 0 ? (
+                      <div className="empty-inquiries-box" style={{ padding: '2rem 1rem' }}>
+                        <Smartphone size={36} className="empty-icon" />
+                        <h4>登録ユーザーはまだいません（0人）</h4>
+                        <p>
+                          ユーザーが新規登録を行い端末OS（iOS / Android）を選択すると、ここに正確な実データグラフが表示されます。
                         </p>
                       </div>
-
-                      <div className="os-detail-card android-card">
-                        <div className="os-card-top">
-                          <div className="os-icon-android">🤖</div>
-                          <span className="os-name">Android (Galaxy / Pixel等)</span>
+                    ) : (
+                      <>
+                        {/* ビジュアルプログレスバー */}
+                        <div className="os-ratio-visual-bar">
+                          {iosPercent > 0 && (
+                            <div
+                              className="os-bar-segment ios-segment"
+                              style={{ width: `${iosPercent}%` }}
+                              title={`iOS: ${iosPercent}%`}
+                            >
+                              <span>iOS {iosPercent}%</span>
+                            </div>
+                          )}
+                          {androidPercent > 0 && (
+                            <div
+                              className="os-bar-segment android-segment"
+                              style={{ width: `${androidPercent}%` }}
+                              title={`Android: ${androidPercent}%`}
+                            >
+                              <span>Android {androidPercent}%</span>
+                            </div>
+                          )}
+                          {otherPercent > 0 && (
+                            <div
+                              className="os-bar-segment other-segment"
+                              style={{ width: `${otherPercent}%` }}
+                              title={`他: ${otherPercent}%`}
+                            >
+                              <span>他 {otherPercent}%</span>
+                            </div>
+                          )}
                         </div>
-                        <div className="os-stat-big">{androidPercent}%</div>
-                        <div className="os-count-label">{displayAndroidCount} ユーザー</div>
-                        <p className="os-insight">
-                          アプリロック・常駐バックグラウンド制御がフル機能で利用可能。Google Play版。
-                        </p>
-                      </div>
 
-                      <div className="os-detail-card other-card">
-                        <div className="os-card-top">
-                          <div className="os-icon-pc">💻</div>
-                          <span className="os-name">PC / その他ブラウザ</span>
+                        {/* OS詳細カードグリッド */}
+                        <div className="os-detail-cards-grid">
+                          <div className="os-detail-card ios-card">
+                            <div className="os-card-top">
+                              <div className="os-icon-apple">🍏</div>
+                              <span className="os-name">iOS (iPhone / iPad)</span>
+                            </div>
+                            <div className="os-stat-big">{iosPercent}%</div>
+                            <div className="os-count-label">{iosCount} 人</div>
+                          </div>
+
+                          <div className="os-detail-card android-card">
+                            <div className="os-card-top">
+                              <div className="os-icon-android">🤖</div>
+                              <span className="os-name">Android</span>
+                            </div>
+                            <div className="os-stat-big">{androidPercent}%</div>
+                            <div className="os-count-label">{androidCount} 人</div>
+                          </div>
+
+                          <div className="os-detail-card other-card">
+                            <div className="os-card-top">
+                              <div className="os-icon-pc">💻</div>
+                              <span className="os-name">その他 / 未設定</span>
+                            </div>
+                            <div className="os-stat-big">{otherPercent}%</div>
+                            <div className="os-count-label">{otherOsCount} 人</div>
+                          </div>
                         </div>
-                        <div className="os-stat-big">{otherPercent}%</div>
-                        <div className="os-count-label">{displayOtherCount} ユーザー</div>
-                        <p className="os-insight">
-                          PCやタブレットからのWeb版利用。キーボードショートカット対応。
-                        </p>
-                      </div>
-                    </div>
+                      </>
+                    )}
                   </div>
 
                   {/* 開発戦略インサイト */}
@@ -730,17 +742,17 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
               <div className="admin-tab-content">
                 <div className="accounts-list-wrap">
                   <div className="accounts-header-row">
-                    <h4>登録済みユーザー ({accountList.length}人)</h4>
+                    <h4>登録済みユーザー ({totalRegistered}人)</h4>
                     <button className="admin-btn-secondary" onClick={loadData}>
                       <RefreshCw size={14} />
                       <span>更新</span>
                     </button>
                   </div>
 
-                  {accountList.length === 0 ? (
+                  {totalRegistered === 0 ? (
                     <div className="empty-inquiries-box">
                       <Users size={36} className="empty-icon" />
-                      <h4>登録済みのアカウントはまだありません</h4>
+                      <h4>登録済みのアカウントはまだありません (0人)</h4>
                       <p>ホーム画面上部の「ログイン」ボタンから新規登録が行われると、ここに自動的に反映されます。</p>
                     </div>
                   ) : (
