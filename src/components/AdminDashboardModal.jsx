@@ -794,32 +794,41 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
                           </tr>
                         </thead>
                         <tbody>
-                          {accountList.map((acc, index) => (
-                            <tr key={index}>
-                              <td>
-                                <div className="table-user-cell">
-                                  <span className="table-avatar">{acc.avatar || '🎓'}</span>
-                                  <span className="table-username">{acc.name || '学習者'}</span>
-                                </div>
-                              </td>
-                              <td className="table-num">
-                                <Flame size={14} className="text-danger" />
-                                <span>{acc.progress?.streak || 0} 日連続</span>
-                              </td>
-                              <td className="table-num">
-                                <Zap size={14} className="text-warning" />
-                                <span>{acc.progress?.totalExp || 0} EXP</span>
-                              </td>
-                              <td>
-                                <span className={`table-os-badge ${acc.smartphoneOs ? acc.smartphoneOs.toLowerCase() : 'none'}`}>
-                                  {acc.smartphoneOs || '未設定'}
-                                </span>
-                              </td>
-                              <td className="table-date">
-                                {acc.registeredAt ? new Date(acc.registeredAt).toLocaleDateString('ja-JP') : '-'}
-                              </td>
-                            </tr>
-                          ))}
+                          {accountList.map((acc, index) => {
+                            const todayStr = new Date().toISOString().split('T')[0];
+                            const regDateStr = acc.registeredAt ? acc.registeredAt.split('T')[0] : todayStr;
+                            // 登録初日は最大1日目
+                            const streakDays = regDateStr === todayStr
+                              ? Math.min(acc.progress?.streak || 1, 1)
+                              : (acc.progress?.streak || 0);
+
+                            return (
+                              <tr key={index}>
+                                <td>
+                                  <div className="table-user-cell">
+                                    <span className="table-avatar">{acc.avatar || '🎓'}</span>
+                                    <span className="table-username">{acc.name || '学習者'}</span>
+                                  </div>
+                                </td>
+                                <td className="table-num">
+                                  <Flame size={14} className="text-danger" />
+                                  <span>{streakDays} 日連続</span>
+                                </td>
+                                <td className="table-num">
+                                  <Zap size={14} className="text-warning" />
+                                  <span>{acc.progress?.totalExp || 0} EXP</span>
+                                </td>
+                                <td>
+                                  <span className={`table-os-badge ${acc.smartphoneOs ? acc.smartphoneOs.toLowerCase() : 'none'}`}>
+                                    {acc.smartphoneOs || '未設定'}
+                                  </span>
+                                </td>
+                                <td className="table-date">
+                                  {acc.registeredAt ? new Date(acc.registeredAt).toLocaleDateString('ja-JP') : '-'}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

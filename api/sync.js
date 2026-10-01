@@ -24,6 +24,18 @@ export default async function handler(req, res) {
 
   // GET: 全ユーザーアカウント・お問い合わせ・OS統計の取得
   if (req.method === 'GET') {
+    // 既存データの正規化（登録初日の過剰streakの補正）
+    const todayStr = new Date().toISOString().split('T')[0];
+    Object.keys(globalStore.accounts).forEach(key => {
+      const acc = globalStore.accounts[key];
+      if (acc && acc.progress) {
+        const regDate = acc.registeredAt ? acc.registeredAt.split('T')[0] : todayStr;
+        if (regDate === todayStr && acc.progress.streak > 1) {
+          acc.progress.streak = 1;
+        }
+      }
+    });
+
     return res.status(200).json({
       success: true,
       accounts: globalStore.accounts,
@@ -40,9 +52,22 @@ export default async function handler(req, res) {
 
       if (type === 'account' && payload && payload.email) {
         const emailKey = payload.email.trim().toLowerCase();
+        const rawProgress = payload.progress || {};
+        const todayStr = new Date().toISOString().split('T')[0];
+        const regDate = payload.registeredAt ? payload.registeredAt.split('T')[0] : todayStr;
+        
+        // 登録初日は最大1日
+        const normalizedStreak = regDate === todayStr 
+          ? Math.min(rawProgress.streak || 1, 1)
+          : (rawProgress.streak || 0);
+
         globalStore.accounts[emailKey] = {
           ...payload,
           email: emailKey,
+          progress: {
+            ...rawProgress,
+            streak: normalizedStreak,
+          },
           registeredAt: payload.registeredAt || new Date().toISOString()
         };
         globalStore.lastUpdated = new Date().toISOString();

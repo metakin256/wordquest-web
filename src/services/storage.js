@@ -72,24 +72,51 @@ export const storage = {
   getAccounts() {
     try {
       const data = localStorage.getItem('wordquest_accounts');
-      return data ? JSON.parse(data) : {};
+      const accounts = data ? JSON.parse(data) : {};
+      
+      // データ整合性チェック: 登録初日のアカウントが過剰なstreak(3日等)になっている場合、1日に正規化
+      const today = this.getTodayString();
+      let modified = false;
+      Object.keys(accounts).forEach(key => {
+        const acc = accounts[key];
+        if (acc && acc.progress) {
+          const regDate = acc.registeredAt ? acc.registeredAt.split('T')[0] : today;
+          // 登録日が今日（初日）のアカウントは最大1日
+          if (regDate === today && (acc.progress.streak > 1 || !acc.progress.streak)) {
+            acc.progress.streak = 1;
+            modified = true;
+          }
+        }
+      });
+      if (modified) {
+        localStorage.setItem('wordquest_accounts', JSON.stringify(accounts));
+      }
+      return accounts;
     } catch {
       return {};
     }
   },
 
-  // アカウント新規作成（パスワードの暗号化・不可逆ハッシュ化）
+  // アカウント新規作成（パスワードの暗号化・不可逆ハッシュ化 & 初日ストリーク初期化）
   async registerAccount(userData, password) {
     const accounts = this.getAccounts();
     const emailKey = userData.email.trim().toLowerCase();
     const passwordHash = await cryptoService.hashPassword(password);
+    const currentProgress = this.getProgress();
+
+    // 新規登録時は初日として連続日数1日（学習済み）または0日からスタート
+    const initialStreak = (currentProgress.quizzesCompleted > 0 || currentProgress.totalExp > 0) ? 1 : 0;
+    const initialProgress = {
+      ...currentProgress,
+      streak: initialStreak,
+    };
 
     const newAccount = {
       ...userData,
       email: emailKey,
       passwordHash: passwordHash,
       isLoggedIn: true,
-      progress: this.getProgress(),
+      progress: initialProgress,
       wordStats: this.getWordStatsMap(),
       registeredAt: new Date().toISOString(),
     };
@@ -97,6 +124,7 @@ export const storage = {
     accounts[emailKey] = newAccount;
     localStorage.setItem('wordquest_accounts', JSON.stringify(accounts));
     this.saveUser(newAccount);
+    this.saveProgress(initialProgress);
     
     // クラウドへ安全に同期 (パスワードを除外して同期)
     const safeAccount = { ...newAccount };
