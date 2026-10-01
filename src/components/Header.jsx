@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, Flame, Zap, Trophy, Volume2, VolumeX, Moon, Sun, User } from 'lucide-react';
+import { Sparkles, Flame, Zap, Trophy, Volume2, VolumeX, Moon, Sun, User, LogIn } from 'lucide-react';
 import { sound } from '../services/sound';
 
 export default function Header({
@@ -87,11 +87,18 @@ export default function Header({
             {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
           </button>
 
-          {/* ユーザーアカウント */}
-          <button className="user-btn" onClick={onOpenAuth} title="アカウント情報・ログイン">
-            <span className="user-avatar">{user.avatar || '🎓'}</span>
-            <span className="user-name">{user.isLoggedIn ? user.name : '無料登録 / ログイン'}</span>
-          </button>
+          {/* ログイン / マイアカウント ボタン */}
+          {user.isLoggedIn ? (
+            <button className="user-btn logged-in" onClick={onOpenAuth} title="マイページ・アカウント設定">
+              <span className="user-avatar">{user.avatar || '🎓'}</span>
+              <span className="user-name">{user.name}</span>
+            </button>
+          ) : (
+            <button className="user-btn login-btn" onClick={onOpenAuth} title="ログイン・無料アカウント登録">
+              <LogIn size={15} className="login-btn-icon" />
+              <span className="user-name">ログイン</span>
+            </button>
+          )}
         </div>
       </div>
 

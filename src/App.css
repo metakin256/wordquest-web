@@ -211,21 +211,45 @@
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  padding: 0.35rem 0.8rem 0.35rem 0.45rem;
+  padding: 0.35rem 0.8rem 0.35rem 0.55rem;
   border-radius: var(--radius-full);
   border: 1px solid var(--border-color);
   background: var(--bg-glass);
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .user-btn:hover {
   border-color: var(--border-glow);
+  transform: translateY(-1px);
+}
+
+.user-btn.login-btn {
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  color: var(--primary);
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.15);
+}
+
+.user-btn.login-btn:hover {
+  background: var(--grad-primary);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 14px var(--primary-glow);
+}
+
+.login-btn-icon {
+  color: currentColor;
+  flex-shrink: 0;
 }
 
 .user-avatar {
-  font-size: 1.1rem;
+  font-size: 1.05rem;
+  line-height: 1;
 }
 
 /* --------------------------------------------------------------------------
@@ -2685,6 +2709,11 @@
     display: none;
   }
 
+  .user-btn.login-btn .user-name {
+    display: inline;
+    font-size: 0.75rem;
+  }
+
   .header-actions {
     gap: 0.35rem;
   }
@@ -2706,7 +2735,7 @@
   }
 
   .user-btn {
-    padding: 0.25rem 0.45rem;
+    padding: 0.25rem 0.55rem;
   }
 
   /* スマホ最上部ナビゲーションタブバー（ヘッダー下部に常駐固定） */
