@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Send, MessageSquare, Check, HelpCircle, AlertTriangle, Lightbulb, MessageCircle, Sparkles } from 'lucide-react';
+import { X, Send, MessageSquare, Check, HelpCircle, AlertTriangle, Lightbulb, MessageCircle, Sparkles, ShieldCheck } from 'lucide-react';
 import { sound } from '../services/sound';
 import { cloudSync } from '../services/cloudSync';
+import { securityService } from '../services/security';
 
 export default function ContactModal({
   isOpen,
@@ -13,7 +14,6 @@ export default function ContactModal({
   const [category, setCategory] = useState(initialCategory);
   const [targetWord, setTargetWord] = useState(initialWord);
   const [message, setMessage] = useState('');
-  const [contactEmail, setContactEmail] = useState(user?.email || '');
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -21,10 +21,9 @@ export default function ContactModal({
     if (isOpen) {
       setCategory(initialCategory || 'word_typo');
       setTargetWord(initialWord || '');
-      setContactEmail(user?.email || '');
       setIsSuccess(false);
     }
-  }, [isOpen, initialCategory, initialWord, user]);
+  }, [isOpen, initialCategory, initialWord]);
 
   if (!isOpen) return null;
 
@@ -42,15 +41,14 @@ export default function ContactModal({
     setLoading(true);
 
     setTimeout(() => {
-      // ローカルストレージにお問い合わせログを保存
+      // ローカルストレージにお問い合わせログを保存 (XSSサニタイズ・個人情報保護)
       const inquiries = JSON.parse(localStorage.getItem('wordquest_inquiries') || '[]');
       const newInquiry = {
         id: 'inq_' + Date.now(),
         category,
-        targetWord: targetWord.trim(),
-        message: message.trim(),
-        email: contactEmail.trim(),
-        user: user?.name || 'ゲスト学習者',
+        targetWord: securityService.sanitizeText(targetWord, 50),
+        message: securityService.sanitizeText(message, 1000),
+        user: securityService.sanitizeText(user?.name || '学習者', 30),
         status: 'pending',
         createdAt: new Date().toISOString(),
       };
@@ -165,17 +163,10 @@ export default function ContactModal({
                 ></textarea>
               </div>
 
-              {/* 返信用メールアドレス（任意） */}
-              <div className="form-group">
-                <label className="form-label">返信先メールアドレス（任意）</label>
-                <input
-                  type="email"
-                  className="form-input"
-                  placeholder="返信をご希望の場合のみ入力してください"
-                  value={contactEmail}
-                  onChange={(e) => setContactEmail(e.target.value)}
-                  style={{ paddingLeft: '1rem' }}
-                />
+              {/* プライバシー保護の案内 */}
+              <div className="contact-privacy-note">
+                <ShieldCheck size={14} className="text-success" />
+                <span>お問い合わせは完全匿名で安全に暗号化送信されます。個人情報は取得・送信されません。</span>
               </div>
 
               <button type="submit" className="contact-submit-btn" disabled={loading || !message.trim()}>

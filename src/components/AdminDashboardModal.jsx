@@ -32,6 +32,7 @@ import {
 import { storage } from '../services/storage';
 import { cloudSync } from '../services/cloudSync';
 import { cryptoService } from '../services/crypto';
+import { securityService } from '../services/security';
 
 // 確認用デモデータ（「デモデータ投入」ボタンを押した時のみ追加される）
 const SAMPLE_INQUIRIES = [
@@ -40,8 +41,7 @@ const SAMPLE_INQUIRIES = [
     category: 'word_typo',
     targetWord: 'abandon',
     message: '日本語訳の「見捨てる」に加えて「諦める」の意味も出題文の解説に加えていただけると嬉しいです！',
-    email: '',
-    user: '高校2年生 (レオ)',
+    user: 'レオ',
     status: 'pending',
     createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
   },
@@ -50,8 +50,7 @@ const SAMPLE_INQUIRIES = [
     category: 'feature_request',
     targetWord: '',
     message: '毎日夜21時にスマホへ通知が来る機能がとても便利です。通知の時間を自由に変更できるようになるとさらに最高です！',
-    email: '',
-    user: '田中 (きなこ)',
+    user: 'きなこ',
     status: 'completed',
     createdAt: new Date(Date.now() - 3600000 * 8).toISOString(),
   },
@@ -60,7 +59,6 @@ const SAMPLE_INQUIRIES = [
     category: 'question',
     targetWord: 'accommodate',
     message: 'この単語は共通テストでもよく出ますか？長文読解での頻出度を教えてほしいです。',
-    email: '',
     user: '受験生S',
     status: 'pending',
     createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
@@ -70,7 +68,6 @@ const SAMPLE_INQUIRIES = [
     category: 'word_typo',
     targetWord: 'benevolent',
     message: '発音記号のアクセント位置が「ne」の部分になっているか確認をお願いできますでしょうか。',
-    email: '',
     user: 'ソラ',
     status: 'pending',
     createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
@@ -81,7 +78,7 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
   // 管理者認証状態 (sessionStorage でタブセッション中保持)
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     try {
-      return sessionStorage.getItem('wordquest_admin_auth') === 'true';
+      return sessionStorage.getItem('wordquest_admin_auth') === 'true' && !securityService.isSessionExpired();
     } catch {
       return false;
     }
@@ -109,6 +106,7 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
   const loadData = async () => {
     setIsSyncing(true);
     try {
+      securityService.touchSessionActivity();
       const storedInquiries = JSON.parse(localStorage.getItem('wordquest_inquiries') || '[]');
       const storedAccounts = storage.getAccounts();
 
@@ -132,13 +130,20 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
     let timer = null;
     if (isOpen) {
       const authed = sessionStorage.getItem('wordquest_admin_auth') === 'true';
-      setIsAuthenticated(authed);
-      if (authed) {
+      if (authed && !securityService.isSessionExpired()) {
+        setIsAuthenticated(true);
+        securityService.touchSessionActivity();
         loadData();
-        // 5秒ごとにクラウドデータを自動ポーリングしてリアルタイム反映
+        // 5秒ごとにクラウドデータを自動ポーリングしてリアルタイム反映 & セッション期限確認
         timer = setInterval(() => {
-          loadData();
+          if (securityService.isSessionExpired()) {
+            handleLogout();
+          } else {
+            loadData();
+          }
         }, 5000);
+      } else {
+        setIsAuthenticated(false);
       }
     }
     return () => {
@@ -148,39 +153,69 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
-  // 管理者パスワード検証
-  const handleLogin = (e) => {
+  // 管理者パスワード検証（SHA-256不可逆ハッシュ照合 & ブルートフォース制限）
+  const handleLogin = async (e) => {
     e.preventDefault();
-    const currentPin = localStorage.getItem('wordquest_admin_pin') || 'admin2026';
-    if (passwordInput.trim() === currentPin || passwordInput.trim() === 'admin2026') {
+    
+    // ロックアウト状態の確認
+    const lockStatus = securityService.getLockoutStatus();
+    if (lockStatus.isLocked) {
+      setAuthError(`セキュリティ保護のため一時制限中です。あと${lockStatus.remainingSeconds}秒お待ちください。`);
+      return;
+    }
+
+    const inputTrimmed = passwordInput.trim();
+    if (!inputTrimmed) return;
+
+    const inputHash = await cryptoService.hashPassword(inputTrimmed);
+    const storedPinHash = localStorage.getItem('wordquest_admin_pin_hash');
+    const defaultPinHash = await cryptoService.hashPassword('admin2026');
+    const oldPlainPin = localStorage.getItem('wordquest_admin_pin');
+
+    const isValid = storedPinHash 
+      ? (inputHash === storedPinHash) 
+      : (oldPlainPin ? (inputTrimmed === oldPlainPin) : (inputHash === defaultPinHash));
+
+    if (isValid) {
+      securityService.resetFailedAttempts();
       sessionStorage.setItem('wordquest_admin_auth', 'true');
+      securityService.touchSessionActivity();
       setIsAuthenticated(true);
       setAuthError('');
       setPasswordInput('');
       loadData();
     } else {
-      setAuthError('管理者パスワードが正しくありません。');
+      const lockResult = securityService.recordFailedAttempt();
+      if (lockResult.isLocked) {
+        setAuthError('パスワードを連続で間違えたため、セキュリティ保護のため5分間ロックされました。');
+      } else {
+        setAuthError(`管理者パスワードが正しくありません。（残り${lockResult.attemptsRemaining}回でロックされます）`);
+      }
     }
   };
 
   // 管理者ログアウト（即時ロック）
   const handleLogout = () => {
     sessionStorage.removeItem('wordquest_admin_auth');
+    sessionStorage.removeItem('wordquest_admin_last_activity');
     setIsAuthenticated(false);
     setPasswordInput('');
     setAuthError('');
     onClose();
   };
 
-  // パスワード変更
-  const handleChangePin = (e) => {
+  // パスワード変更（SHA-256暗号化保存）
+  const handleChangePin = async (e) => {
     e.preventDefault();
-    if (!newPinInput.trim() || newPinInput.length < 4) {
-      setPinChangeSuccess('4文字以上のパスワードを入力してください。');
+    const pin = newPinInput.trim();
+    if (!pin || pin.length < 6) {
+      setPinChangeSuccess('安全のため6文字以上のパスワードを入力してください。');
       return;
     }
-    localStorage.setItem('wordquest_admin_pin', newPinInput.trim());
-    setPinChangeSuccess('管理者パスワードを変更しました！');
+    const newHash = await cryptoService.hashPassword(pin);
+    localStorage.setItem('wordquest_admin_pin_hash', newHash);
+    localStorage.removeItem('wordquest_admin_pin'); // 平文は完全破棄
+    setPinChangeSuccess('管理者パスワードをSHA-256暗号化して更新しました！');
     setTimeout(() => {
       setIsChangingPin(false);
       setPinChangeSuccess('');

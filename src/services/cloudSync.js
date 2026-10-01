@@ -83,9 +83,13 @@ export const cloudSync = {
       }
     }
 
-    // B. Serverless API からの取得
+    // B. Serverless API からの取得 (認証ヘッダー付与)
     try {
-      const res = await fetch('/api/sync');
+      const res = await fetch('/api/sync', {
+        headers: {
+          'x-admin-auth': 'authenticated',
+        },
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.accounts) {

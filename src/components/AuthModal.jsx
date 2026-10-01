@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Mail, Lock, User, Check, ArrowRight, ShieldCheck, Smartphone, Apple, PlayCircle, HelpCircle, AlertCircle, LogIn, UserPlus } from 'lucide-react';
 import { storage } from '../services/storage';
 import { sound } from '../services/sound';
+import { securityService } from '../services/security';
 
 export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
   // デフォルトは「ログイン」タブ（登録済みユーザーがすぐログインできるように）
@@ -32,8 +33,19 @@ export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
     setErrorMsg('');
     setSuccessMsg('');
 
-    if (!email || !password) {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
       setErrorMsg('メールアドレスとパスワードを入力してください。');
+      return;
+    }
+
+    if (!securityService.isValidEmail(trimmedEmail)) {
+      setErrorMsg('有効なメールアドレス形式を入力してください。');
+      return;
+    }
+
+    if (isSignUp && !securityService.isValidPassword(password)) {
+      setErrorMsg('パスワードは安全のため6文字以上で入力してください。');
       return;
     }
 
@@ -42,10 +54,12 @@ export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
     try {
       if (isSignUp) {
         // 新規アカウント作成
-        const finalOs = selectedOs === 'other' ? (otherOsText.trim() || 'その他') : selectedOs;
+        const finalOs = selectedOs === 'other' ? (securityService.sanitizeText(otherOsText.trim(), 20) || 'その他') : selectedOs;
+        const sanitizedName = securityService.sanitizeText(name.trim(), 30) || trimmedEmail.split('@')[0];
+
         const userData = {
-          name: name.trim() || email.split('@')[0],
-          email: email.trim(),
+          name: sanitizedName,
+          email: trimmedEmail,
           avatar: avatar,
           smartphoneOs: finalOs,
           enableReminderEmail: enableReminderEmail,

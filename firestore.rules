@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ユーザーコレクション: 本人のみ読み書き可能、パスワード等の機密フィールドは不許可
+    match /users/{userId} {
+      allow read: if false; // 一般クライアントからの全ユーザー一括読み取りを禁止 (プライバシー保護)
+      allow create, update: if request.resource.data.keys().hasAll(['name', 'smartphoneOs', 'registeredAt'])
+                            && !('password' in request.resource.data)
+                            && !('passwordHash' in request.resource.data);
+    }
+    
+    // お問い合わせコレクション: 作成のみ許可、読み取り・一覧取得はクライアント側からは禁止
+    match /inquiries/{inquiryId} {
+      allow create: if request.resource.data.message is string
+                    && request.resource.data.message.size() <= 1000
+                    && request.resource.data.message.size() > 0;
+      allow read, update, delete: if false; // 管理者のみServerless/Firebase Admin SDK経由で閲覧
+    }
+    
+    // システム統計（OS比率等）: 読み取り許可、集計更新のみ許可
+    match /system_stats/{statId} {
+      allow read: if true;
+      allow write: if request.resource.data.totalUsers is number;
+    }
+  }
+}
