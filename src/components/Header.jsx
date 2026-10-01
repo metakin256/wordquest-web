@@ -68,7 +68,7 @@ export default function Header({
           <div className="stat-badge streak-badge" title="連続学習日数">
             <Flame size={16} className="flame-icon" />
             <span className="stat-value">{progress.streak ?? 0}</span>
-            <span className="stat-unit">日</span>
+            <span className="stat-unit">日連続</span>
           </div>
 
           {/* 累計EXP */}

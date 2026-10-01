@@ -2686,26 +2686,27 @@
   }
 
   .header-actions {
-    gap: 0.4rem;
+    gap: 0.35rem;
   }
 
   .stat-badge {
-    padding: 0.3rem 0.55rem;
+    padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
-    gap: 0.25rem;
+    gap: 0.2rem;
   }
 
   .stat-unit {
-    display: none;
+    display: inline;
+    font-size: 0.68rem;
   }
 
   .icon-btn {
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
   }
 
   .user-btn {
-    padding: 0.3rem 0.5rem;
+    padding: 0.25rem 0.45rem;
   }
 
   /* スマホ最上部ナビゲーションタブバー（ヘッダー下部に常駐固定） */
@@ -2769,12 +2770,20 @@
   }
 
   .ranking-list-header, .ranking-item-row {
-    grid-template-columns: 45px 1fr 75px;
-    padding: 0.75rem 0.85rem;
+    grid-template-columns: 40px 1fr 65px 70px;
+    padding: 0.7rem 0.6rem;
   }
 
   .col-streak {
-    display: none;
+    display: flex;
+    align-items: center;
+    font-size: 0.72rem;
+  }
+
+  .streak-pill {
+    padding: 0.15rem 0.35rem;
+    font-size: 0.7rem;
+    white-space: nowrap;
   }
 }
 

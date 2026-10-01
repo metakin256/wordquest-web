@@ -90,11 +90,36 @@ export const storage = {
     return 'learning'; // 1〜2回連続正解中
   },
 
+  // 今日のローカル日付 (YYYY-MM-DD)
+  getTodayString() {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  },
+
   // 学習進捗
   getProgress() {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.PROGRESS);
       const progress = data ? JSON.parse(data) : DEFAULT_PROGRESS;
+      
+      const today = this.getTodayString();
+      let activeStreak = progress.streak || 0;
+
+      // 最後の学習日から2日以上経過している場合は連続記録が途切れる
+      if (progress.lastStudyDate) {
+        const lastDate = new Date(progress.lastStudyDate);
+        const currentDate = new Date(today);
+        const diffTime = currentDate - lastDate;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays > 1) {
+          activeStreak = 0; // 2日以上空いたのでストリーク途切れ
+        }
+      } else {
+        activeStreak = 0;
+      }
       
       // 統計マップから最新の習得済・要復習件数を再集計
       const statsMap = this.getWordStatsMap();
@@ -109,6 +134,7 @@ export const storage = {
 
       return {
         ...progress,
+        streak: activeStreak,
         masteredCount: mastered,
         reviewCount: weak,
       };
@@ -125,7 +151,7 @@ export const storage = {
     }
   },
 
-  // クイズ回答結果の反映（オリジナルアプリと完全同一ロジック）
+  // クイズ回答結果の反映（連続日数の厳密な加算ロジック）
   recordQuizAnswers(answeredWordResults, earnedExp) {
     // answeredWordResults: [{ wordId: 1, isCorrect: true }, ...]
     const statsMap = this.getWordStatsMap();
@@ -152,11 +178,11 @@ export const storage = {
 
     // 総合進捗とストリークの更新
     const progress = this.getProgress();
-    const today = new Date().toISOString().split('T')[0];
+    const today = this.getTodayString();
 
     let newStreak = progress.streak || 0;
     if (!progress.lastStudyDate) {
-      // 初めてのテスト完了 -> 1日目！
+      // 初回クリア -> 1日連続！
       newStreak = 1;
     } else {
       const lastDate = new Date(progress.lastStudyDate);
@@ -165,10 +191,13 @@ export const storage = {
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
       if (diffDays === 1) {
+        // 昨日学習していて今日学習 -> 連続日数 + 1！
         newStreak += 1;
       } else if (diffDays === 0) {
+        // 今日すでに学習済み -> 今日の連続日数を維持
         newStreak = Math.max(1, newStreak);
       } else if (diffDays > 1) {
+        // 2日以上空いて再開 -> 1日連続から再スタート
         newStreak = 1;
       }
     }
