@@ -6,6 +6,7 @@ import ResultModal from './components/ResultModal';
 import RankingView from './components/RankingView';
 import WordListView from './components/WordListView';
 import AuthModal from './components/AuthModal';
+import ContactModal from './components/ContactModal';
 
 import { WORDS_DATABASE, generateOptionsForWord } from './data/words';
 import { storage } from './services/storage';
@@ -24,8 +25,9 @@ export default function App() {
   const [sessionWords, setSessionWords] = useState([]);
   const [lastResult, setLastResult] = useState(null);
 
-  // ログイン・登録モーダル
+  // ログイン・登録モーダル & お問い合わせモーダル
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isContactOpen, setIsContactOpen] = useState(false);
 
   // 問題数の変更・保存
   const handleSetQuestionCount = (count) => {
@@ -85,6 +87,7 @@ export default function App() {
         isMuted={isMuted}
         setIsMuted={setIsMuted}
         onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenContact={() => setIsContactOpen(true)}
         currentTab={currentView}
         setCurrentTab={(tab) => setCurrentView(tab)}
       />
@@ -139,6 +142,10 @@ export default function App() {
         <div className="footer-inner">
           <p>© 2026 苦しんで覚える英単語 Web版. 高校生特化 爆速4択英単語暗記</p>
           <div className="footer-links">
+            <button className="footer-link contact-link-highlight" onClick={() => setIsContactOpen(true)}>
+              📩 お問い合わせ・ご意見箱
+            </button>
+            <span className="dot-sep">•</span>
             <button className="footer-link" onClick={() => setIsAuthOpen(true)}>
               {user?.isLoggedIn ? 'マイアカウント' : '無料アカウント作成'}
             </button>
@@ -159,6 +166,13 @@ export default function App() {
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
         onUserUpdated={(newUser) => setUser(newUser)}
+      />
+
+      {/* お問い合わせ・ご意見箱モーダル */}
+      <ContactModal
+        isOpen={isContactOpen}
+        onClose={() => setIsContactOpen(false)}
+        user={user}
       />
     </div>
   );

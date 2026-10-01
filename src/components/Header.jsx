@@ -10,6 +10,7 @@ export default function Header({
   isMuted,
   setIsMuted,
   onOpenAuth,
+  onOpenContact,
   currentTab,
   setCurrentTab,
 }) {
@@ -77,6 +78,11 @@ export default function Header({
             <span className="stat-value">{progress.totalExp || 0}</span>
             <span className="stat-unit">EXP</span>
           </div>
+
+          {/* お問い合わせ・ご意見ボタン */}
+          <button className="icon-btn contact-icon-btn pc-only-btn" onClick={onOpenContact} title="単語ミス報告・ご意見・お問い合わせ">
+            📩
+          </button>
 
           {/* サウンド & テーマ切替 */}
           <button className="icon-btn" onClick={toggleSound} title={isMuted ? '音声オン' : '消音'}>
