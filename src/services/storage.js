@@ -20,26 +20,31 @@ const DEFAULT_USER = {
   createdAt: new Date().toISOString(),
 };
 
-// 初期進捗データ
+// 初期進捗データ（初回は連続0日）
 const DEFAULT_PROGRESS = {
   totalExp: 0,
-  streak: 1,
-  lastStudyDate: new Date().toISOString().split('T')[0],
+  streak: 0,
+  lastStudyDate: null,
   masteredCount: 0,
   reviewCount: 0,
   quizzesCompleted: 0,
   correctAnswersCount: 0,
 };
 
-// モックのランキング上位陣
+// 週間ランキングのモックユーザー（ユーザー指定の自然なニックネーム）
 const MOCK_RANKING_USERS = [
-  { id: 'm1', name: '東大志望_高3', exp: 1680, streak: 21, avatar: '🦁', rank: 1 },
-  { id: 'm2', name: '共通テスト9割目標', exp: 1250, streak: 15, avatar: '🚀', rank: 2 },
-  { id: 'm3', name: 'Sara / 早慶志望', exp: 980, streak: 12, avatar: '🌸', rank: 3 },
-  { id: 'm4', name: 'MARCH絶対合格', exp: 740, streak: 8, avatar: '⚡', rank: 4 },
-  { id: 'm5', name: '高2_毎日20問', exp: 560, streak: 6, avatar: '🎯', rank: 5 },
-  { id: 'm6', name: 'Yuki_英語特訓中', exp: 420, streak: 4, avatar: '📚', rank: 6 },
-  { id: 'm7', name: 'Ken_高1', exp: 310, streak: 3, avatar: '✨', rank: 7 },
+  { id: 'm1', name: 'レオ', exp: 1680, streak: 21, avatar: '🦁', rank: 1 },
+  { id: 'm2', name: 'きなこ', exp: 1420, streak: 18, avatar: '🐱', rank: 2 },
+  { id: 'm3', name: 'ソラ', exp: 1180, streak: 14, avatar: '🚀', rank: 3 },
+  { id: 'm4', name: 'さくら', exp: 950, streak: 11, avatar: '🌸', rank: 4 },
+  { id: 'm5', name: 'カイ', exp: 780, streak: 9, avatar: '⚡', rank: 5 },
+  { id: 'm6', name: 'ぷりん', exp: 620, streak: 7, avatar: '🍮', rank: 6 },
+  { id: 'm7', name: 'ルイ', exp: 490, streak: 5, avatar: '✨', rank: 7 },
+  { id: 'm8', name: 'くるみ', exp: 380, streak: 4, avatar: '🐿️', rank: 8 },
+  { id: 'm9', name: 'ひなた', exp: 270, streak: 3, avatar: '☀️', rank: 9 },
+  { id: 'm10', name: 'レン', exp: 160, streak: 2, avatar: '🎯', rank: 10 },
+  { id: 'm11', name: 'おもち', exp: 110, streak: 2, avatar: '🍡', rank: 11 },
+  { id: 'm12', name: 'ニコ', exp: 60, streak: 1, avatar: '😄', rank: 12 },
 ];
 
 export const storage = {
@@ -149,8 +154,11 @@ export const storage = {
     const progress = this.getProgress();
     const today = new Date().toISOString().split('T')[0];
 
-    let newStreak = progress.streak || 1;
-    if (progress.lastStudyDate) {
+    let newStreak = progress.streak || 0;
+    if (!progress.lastStudyDate) {
+      // 初めてのテスト完了 -> 1日目！
+      newStreak = 1;
+    } else {
       const lastDate = new Date(progress.lastStudyDate);
       const currentDate = new Date(today);
       const diffTime = currentDate - lastDate;
@@ -158,6 +166,8 @@ export const storage = {
 
       if (diffDays === 1) {
         newStreak += 1;
+      } else if (diffDays === 0) {
+        newStreak = Math.max(1, newStreak);
       } else if (diffDays > 1) {
         newStreak = 1;
       }
@@ -196,7 +206,7 @@ export const storage = {
       id: user.id,
       name: user.name + ' (あなた)',
       exp: progress.totalExp || 0,
-      streak: progress.streak || 1,
+      streak: progress.streak || 0,
       avatar: user.avatar || '🎓',
       isCurrentUser: true,
     };
