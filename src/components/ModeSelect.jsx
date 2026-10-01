@@ -24,14 +24,14 @@ export default function ModeSelect({
         <div className="hero-content">
           <div className="hero-tag">
             <Sparkles size={14} />
-            <span>高校生・受験生特化 スピード暗記</span>
+            <span>高校生・大学受験特化 8,114語完全収録</span>
           </div>
           <h1 className="hero-title">
-            スキマ時間で爆速マスター<br />
-            <span className="text-gradient">4択 英単語バトル</span>
+            苦しんで覚える英単語<br />
+            <span className="text-gradient">爆速 4択テスト</span>
           </h1>
           <p className="hero-desc">
-            高校基礎から共通テスト・難関大まで全8,114語。キーボード [1〜4] キーやタップでテンポよく暗記！
+            3回連続正解するまで終わらない！高校基礎から共通テスト・難関私大・東大京大まで全8,114語を徹底的に頭に叩き込む。
           </p>
 
           <div className="hero-actions">

@@ -128,7 +128,7 @@ export default function App() {
       {/* フッター */}
       <footer className="app-footer">
         <div className="footer-inner">
-          <p>© 2026 WordQuest. 高校生特化 爆速4択英単語暗記</p>
+          <p>© 2026 苦しんで覚える英単語 Web版. 高校生特化 爆速4択英単語暗記</p>
           <div className="footer-links">
             <button className="footer-link" onClick={() => setIsAuthOpen(true)}>
               {user?.isLoggedIn ? 'マイアカウント' : '無料アカウント作成'}

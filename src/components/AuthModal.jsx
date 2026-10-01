@@ -13,6 +13,9 @@ export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
   // スマホOSの質問ステート
   const [selectedOs, setSelectedOs] = useState('ios'); // 'ios' | 'android' | 'other'
   const [otherOsText, setOtherOsText] = useState('');
+  
+  // さぼり防止通知・メルマガ設定
+  const [enableReminderEmail, setEnableReminderEmail] = useState(true);
 
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -37,6 +40,7 @@ export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
         isLoggedIn: true,
         avatar: avatar,
         smartphoneOs: isSignUp ? finalOs : (currentUser.smartphoneOs || finalOs),
+        enableReminderEmail: isSignUp ? enableReminderEmail : (currentUser.enableReminderEmail ?? true),
       };
 
       storage.saveUser(updatedUser);
@@ -88,7 +92,7 @@ export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
 
             <div className="profile-sync-badge">
               <ShieldCheck size={16} className="text-success" />
-              <span>学習進捗とランキングはクラウド同期されています</span>
+              <span>学習進捗・さぼり防止通知はクラウド連携中</span>
             </div>
 
             <button className="logout-btn" onClick={handleLogout}>
@@ -101,7 +105,7 @@ export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
               <h3 className="modal-title">{isSignUp ? '無料アカウント作成' : 'メールアドレスでログイン'}</h3>
               <p className="modal-desc">
                 {isSignUp
-                  ? '登録すると暗記データが保存され、アプリ版リリース時にそのまま引き継げます。'
+                  ? '登録すると暗記データが保存され、さぼり防止リマインダーやアプリ版へのデータ引き継ぎが利用できます。'
                   : 'ログインして保存された学習データを復元します。'}
               </p>
             </div>
@@ -230,6 +234,22 @@ export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
                   />
                 </div>
               </div>
+
+              {isSignUp && (
+                <div className="form-group reminder-opt-in-box">
+                  <label className="checkbox-label" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                    <input
+                      type="checkbox"
+                      checked={enableReminderEmail}
+                      onChange={(e) => setEnableReminderEmail(e.target.checked)}
+                      style={{ marginTop: '0.15rem', accentColor: 'var(--primary)' }}
+                    />
+                    <span>
+                      🔥 <strong>さぼり防止通知を受け取る</strong>（1日学習がない時にリマインドメールを受信して継続をサポート）
+                    </span>
+                  </label>
+                </div>
+              )}
 
               <button type="submit" className="auth-submit-btn" disabled={loading}>
                 {loading ? '処理中...' : isSignUp ? '登録して暗記をスタート' : 'ログイン'}

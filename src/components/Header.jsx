@@ -34,8 +34,8 @@ export default function Header({
             <Sparkles className="logo-icon" size={20} />
           </div>
           <div className="logo-text">
-            <span className="logo-title">WordQuest</span>
-            <span className="logo-tag">Web Edition</span>
+            <span className="logo-title">苦しんで覚える英単語</span>
+            <span className="logo-tag">Web版 (全8,114語)</span>
           </div>
         </div>
 

@@ -43,7 +43,7 @@ export default function SurveyModal({ isOpen, onClose }) {
           </div>
           <h3 className="modal-title">スマホアプリ版 開発事前アンケート</h3>
           <p className="modal-desc">
-            いつもWordQuestをご利用いただきありがとうございます！<br />
+            いつも「苦しんで覚える英単語」をご利用いただきありがとうございます！<br />
             アプリ版の先行リリース優先度を決定するため、あなたが普段お使いのスマートフォンを教えてください。
           </p>
         </div>
