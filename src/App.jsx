@@ -6,6 +6,7 @@ import ResultModal from './components/ResultModal';
 import RankingView from './components/RankingView';
 import WordListView from './components/WordListView';
 import AuthModal from './components/AuthModal';
+import BottomNav from './components/BottomNav';
 
 import { WORDS_DATABASE, generateOptionsForWord } from './data/words';
 import { storage } from './services/storage';
@@ -17,8 +18,7 @@ export default function App() {
   const [progress, setProgress] = useState(() => storage.getProgress());
   const [isMuted, setIsMuted] = useState(false);
 
-  // 画面状態
-  // view: 'home' | 'quiz' | 'result' | 'ranking' | 'wordlist'
+  // 画面状態: 'home' | 'quiz' | 'result' | 'ranking' | 'wordlist'
   const [currentView, setCurrentView] = useState('home');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sessionWords, setSessionWords] = useState([]);
@@ -57,16 +57,10 @@ export default function App() {
     setCurrentView('quiz');
   };
 
-  // テスト完了処理
+  // テスト完了処理（オリジナルアプリと完全同一の正誤記録 & 習得計算）
   const handleSessionComplete = (resultData) => {
-    const { earnedExp, correctCount, total, masteredIds, reviewIds } = resultData;
-    const updatedProgress = storage.addExpAndRecordQuiz(
-      earnedExp,
-      correctCount,
-      total,
-      masteredIds,
-      reviewIds
-    );
+    const { answeredWordResults, earnedExp } = resultData;
+    const updatedProgress = storage.recordQuizAnswers(answeredWordResults || [], earnedExp || 100);
     setProgress(updatedProgress);
     setLastResult(resultData);
     setCurrentView('result');
@@ -132,7 +126,7 @@ export default function App() {
         )}
       </main>
 
-      {/* フッター */}
+      {/* フッター（PC用） */}
       <footer className="app-footer">
         <div className="footer-inner">
           <p>© 2026 WordQuest. 高校生特化 爆速4択英単語暗記</p>
@@ -151,6 +145,14 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* スマホ専用ボトムナビゲーションバー（下部固定） */}
+      <BottomNav
+        currentTab={currentView}
+        setCurrentTab={setCurrentView}
+        onOpenAuth={() => setIsAuthOpen(true)}
+        user={user}
+      />
 
       {/* 認証・ログインモーダル */}
       <AuthModal

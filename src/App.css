@@ -2362,42 +2362,87 @@
 }
 
 /* --------------------------------------------------------------------------
-   Responsive Mobile Adjustments
+   Mobile Bottom Navigation Bar
    -------------------------------------------------------------------------- */
+.mobile-bottom-nav {
+  display: none;
+}
+
 @media (max-width: 768px) {
+  .app-main-content {
+    padding-bottom: 5.5rem;
+  }
+  .app-footer {
+    margin-bottom: 4rem;
+  }
   .header-inner {
-    padding: 0.75rem 1rem;
+    padding: 0.65rem 0.85rem;
   }
   .header-nav {
     display: none;
   }
-  .survey-btn-header .survey-btn-text {
+  .user-name {
     display: none;
+  }
+  .stat-badge {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.78rem;
   }
   .hero-banner {
     grid-template-columns: 1fr;
     padding: 1.5rem;
   }
   .hero-title {
-    font-size: 1.7rem;
-  }
-  .flashcard-wrapper {
-    height: 320px;
-  }
-  .card-word-title {
-    font-size: 2rem;
-  }
-  .card-meaning-title {
-    font-size: 1.4rem;
-  }
-  .survey-banner-content {
-    flex-direction: column;
-    align-items: flex-start;
+    font-size: 1.6rem;
   }
   .ranking-list-header, .ranking-item-row {
-    grid-template-columns: 50px 1fr 80px;
+    grid-template-columns: 45px 1fr 75px;
+    padding: 0.75rem 0.85rem;
   }
   .col-streak {
     display: none;
   }
+
+  /* スマホ下部固定バー */
+  .mobile-bottom-nav {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(17, 24, 39, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border-color);
+    padding: 0.45rem 0.25rem;
+    z-index: 999;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+  }
+
+  [data-theme="light"] .mobile-bottom-nav {
+    background: rgba(255, 255, 255, 0.92);
+  }
+
+  .bottom-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.25rem;
+  }
+
+  .bottom-nav-item.active {
+    color: var(--primary);
+  }
+
+  .bottom-nav-avatar {
+    font-size: 1.25rem;
+    line-height: 1;
+  }
 }
+

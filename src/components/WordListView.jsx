@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Volume2, CheckCircle2, RotateCcw, ArrowLeft, BookOpen, ChevronDown, Sparkles } from 'lucide-react';
+import { Search, Volume2, CheckCircle2, RotateCcw, ArrowLeft, BookOpen, ChevronDown, Sparkles, Flame } from 'lucide-react';
 import { WORDS_DATABASE, WORD_CATEGORIES } from '../data/words';
+import { storage } from '../services/storage';
 import { sound } from '../services/sound';
 
 const PAGE_SIZE = 40; // 1回あたりの表示件数（超高速レンダリング）
@@ -11,8 +12,7 @@ export default function WordListView({ progress, onBack }) {
   const [statusFilter, setStatusFilter] = useState('all');
   const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
 
-  const masteredIds = progress.masteredWordIds || [];
-  const reviewIds = progress.reviewWordIds || [];
+  const statsMap = storage.getWordStatsMap();
 
   // 検索・フィルターの高速メモ化
   const filteredWords = useMemo(() => {
@@ -32,14 +32,23 @@ export default function WordListView({ progress, onBack }) {
         return false;
       }
 
-      // ステータス
-      if (statusFilter === 'mastered') return masteredIds.includes(w.id);
-      if (statusFilter === 'review') return reviewIds.includes(w.id);
-      if (statusFilter === 'unlearned') return !masteredIds.includes(w.id) && !reviewIds.includes(w.id);
+      // ステータス判定（オリジナルアプリと完全同一）
+      const stat = statsMap[w.id];
+      const asked = stat?.asked || 0;
+      const streak = stat?.streak || 0;
+      const isMastered = streak >= 3;
+      const isWeak = asked > 0 && (streak === 0 || (stat.correct / asked < 0.5));
+      const isLearning = asked > 0 && !isMastered && !isWeak;
+      const isUnlearned = asked === 0;
+
+      if (statusFilter === 'mastered') return isMastered;
+      if (statusFilter === 'review') return isWeak;
+      if (statusFilter === 'learning') return isLearning;
+      if (statusFilter === 'unlearned') return isUnlearned;
 
       return true;
     });
-  }, [searchTerm, categoryFilter, statusFilter, masteredIds, reviewIds]);
+  }, [searchTerm, categoryFilter, statusFilter, statsMap]);
 
   // 検索条件が変わったら表示件数を先頭にリセット
   useEffect(() => {
@@ -100,9 +109,10 @@ export default function WordListView({ progress, onBack }) {
             onChange={(e) => setStatusFilter(e.target.value)}
           >
             <option value="all">すべてのステータス</option>
-            <option value="mastered">マスターのみ ({masteredIds.length})</option>
-            <option value="review">要復習のみ ({reviewIds.length})</option>
-            <option value="unlearned">未学習のみ</option>
+            <option value="mastered">習得済 (3回連続正解)</option>
+            <option value="review">苦手・要復習 (直近ミス)</option>
+            <option value="learning">学習中 (1-2回正解)</option>
+            <option value="unlearned">未出題</option>
           </select>
         </div>
       </div>
@@ -115,22 +125,32 @@ export default function WordListView({ progress, onBack }) {
       {/* 単語グリッド（高速描画） */}
       <div className="words-cards-grid">
         {visibleWords.map((word) => {
-          const isMastered = masteredIds.includes(word.id);
-          const isReview = reviewIds.includes(word.id);
+          const stat = statsMap[word.id];
+          const asked = stat?.asked || 0;
+          const streak = stat?.streak || 0;
+          const isMastered = streak >= 3;
+          const isWeak = asked > 0 && (streak === 0 || (stat.correct / asked < 0.5));
+          const isLearning = asked > 0 && !isMastered && !isWeak;
 
           return (
             <div key={word.id} className="word-card-item">
               <div className="word-card-header">
                 <span className="quiz-level-badge">{word.level}</span>
                 <span className="quiz-pos-badge">{word.partOfSpeech}</span>
+
                 {isMastered && (
-                  <span className="status-pill mastered">
-                    <CheckCircle2 size={13} /> マスター
+                  <span className="status-pill mastered" title="3回以上連続正解">
+                    <CheckCircle2 size={13} /> 習得済 (🔥{streak})
                   </span>
                 )}
-                {isReview && (
-                  <span className="status-pill review">
+                {isWeak && (
+                  <span className="status-pill review" title="直近で不正解">
                     <RotateCcw size={13} /> 要復習
+                  </span>
+                )}
+                {isLearning && (
+                  <span className="status-pill learning" title="定着中">
+                    <Flame size={13} /> 習得中 ({streak}/3)
                   </span>
                 )}
               </div>

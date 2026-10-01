@@ -12,11 +12,8 @@ export default function QuizView({
   const [isAnswered, setIsAnswered] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [score, setScore] = useState(0);
+  const [answeredResults, setAnsweredResults] = useState([]); // [{ wordId, isCorrect }]
   const [showTip, setShowTip] = useState(false);
-
-  // 正解・要復習の単語IDを追跡
-  const [masteredIds, setMasteredIds] = useState([]);
-  const [reviewIds, setReviewIds] = useState([]);
 
   const currentWord = words[currentIndex] || words[0];
 
@@ -39,13 +36,13 @@ export default function QuizView({
     setIsAnswered(true);
     setIsCorrect(correct);
 
+    setAnsweredResults(prev => [...prev, { wordId: currentWord.id, isCorrect: correct }]);
+
     if (correct) {
       sound.playCorrect();
       setScore(prev => prev + 1);
-      setMasteredIds(prev => [...prev, currentWord.id]);
     } else {
       sound.playIncorrect();
-      setReviewIds(prev => [...prev, currentWord.id]);
     }
   }, [isAnswered, currentWord]);
 
@@ -55,18 +52,17 @@ export default function QuizView({
       setCurrentIndex(prev => prev + 1);
     } else {
       // 終了
-      const finalScore = score + (isCorrect ? 0 : 0); // 既に加算済み
-      const earnedExp = (score) * 20 + 30; // 基本EXP + ボーナス
+      const earnedExp = score * 20 + 30; // 基本EXP + ボーナス
       onComplete({
         total: words.length,
         correctCount: score,
         earnedExp,
-        masteredIds,
-        reviewIds,
+        answeredWordResults: answeredResults,
         words,
       });
     }
-  }, [currentIndex, words, score, isCorrect, masteredIds, reviewIds, onComplete]);
+  }, [currentIndex, words, score, answeredResults, onComplete]);
+
 
   // キーボードショートカット（1〜4キーで解答、Enter/Spaceで次へ）
   useEffect(() => {
