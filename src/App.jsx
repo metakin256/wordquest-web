@@ -6,7 +6,6 @@ import ResultModal from './components/ResultModal';
 import RankingView from './components/RankingView';
 import WordListView from './components/WordListView';
 import AuthModal from './components/AuthModal';
-import BottomNav from './components/BottomNav';
 
 import { WORDS_DATABASE, generateOptionsForWord } from './data/words';
 import { storage } from './services/storage';
@@ -126,7 +125,7 @@ export default function App() {
         )}
       </main>
 
-      {/* フッター（PC用） */}
+      {/* フッター */}
       <footer className="app-footer">
         <div className="footer-inner">
           <p>© 2026 WordQuest. 高校生特化 爆速4択英単語暗記</p>
@@ -145,14 +144,6 @@ export default function App() {
           </div>
         </div>
       </footer>
-
-      {/* スマホ専用ボトムナビゲーションバー（下部固定） */}
-      <BottomNav
-        currentTab={currentView}
-        setCurrentTab={setCurrentView}
-        onOpenAuth={() => setIsAuthOpen(true)}
-        user={user}
-      />
 
       {/* 認証・ログインモーダル */}
       <AuthModal
