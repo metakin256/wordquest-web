@@ -1,5 +1,6 @@
 import { cloudDB } from './database';
 import { isFirebaseConfigured } from './firebase';
+import { cloudSync } from './cloudSync';
 
 const STORAGE_KEYS = {
   USER: 'wordquest_user',
@@ -62,6 +63,7 @@ export const storage = {
     localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
     if (user.isLoggedIn) {
       cloudDB.syncUserProfile(user, this.getProgress());
+      cloudSync.syncAccount(user);
     }
   },
 
@@ -93,6 +95,10 @@ export const storage = {
     accounts[emailKey] = newAccount;
     localStorage.setItem('wordquest_accounts', JSON.stringify(accounts));
     this.saveUser(newAccount);
+    
+    // クラウドへ即時同期 (スマホ -> PCリアルタイム連携)
+    cloudSync.syncAccount(newAccount);
+
     return { success: true, user: newAccount };
   },
 

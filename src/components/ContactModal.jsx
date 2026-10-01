@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Send, MessageSquare, Check, HelpCircle, AlertTriangle, Lightbulb, MessageCircle, Sparkles } from 'lucide-react';
 import { sound } from '../services/sound';
+import { cloudSync } from '../services/cloudSync';
 
 export default function ContactModal({
   isOpen,
@@ -41,7 +42,7 @@ export default function ContactModal({
     setLoading(true);
 
     setTimeout(() => {
-      // ローカルストレージにお問い合わせログを保存（管理者ダッシュボードで即時閲覧可能）
+      // ローカルストレージにお問い合わせログを保存
       const inquiries = JSON.parse(localStorage.getItem('wordquest_inquiries') || '[]');
       const newInquiry = {
         id: 'inq_' + Date.now(),
@@ -55,6 +56,9 @@ export default function ContactModal({
       };
       inquiries.unshift(newInquiry);
       localStorage.setItem('wordquest_inquiries', JSON.stringify(inquiries));
+
+      // クラウドへ即時同期 (スマホ -> PCリアルタイム連携)
+      cloudSync.syncInquiry(newInquiry);
 
       setLoading(false);
       setIsSuccess(true);

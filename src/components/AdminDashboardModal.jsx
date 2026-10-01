@@ -30,6 +30,7 @@ import {
   Settings
 } from 'lucide-react';
 import { storage } from '../services/storage';
+import { cloudSync } from '../services/cloudSync';
 
 // 確認用デモデータ（「デモデータ投入」ボタンを押した時のみ追加される）
 const SAMPLE_INQUIRIES = [
@@ -101,28 +102,47 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [accounts, setAccounts] = useState({});
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // データの読み込み（認証後のみ）
-  const loadData = () => {
+  // クラウド＆ローカル全データの同期読み込み
+  const loadData = async () => {
+    setIsSyncing(true);
     try {
       const storedInquiries = JSON.parse(localStorage.getItem('wordquest_inquiries') || '[]');
-      setInquiries(storedInquiries);
       const storedAccounts = storage.getAccounts();
+
+      setInquiries(storedInquiries);
       setAccounts(storedAccounts);
-    } catch {
-      setInquiries([]);
-      setAccounts({});
+
+      // クラウド（Firebase / Serverless API）から最新全端末データを取得・マージ
+      const globalData = await cloudSync.fetchAllGlobalData(storedAccounts, storedInquiries);
+      if (globalData) {
+        setAccounts(globalData.accounts || storedAccounts);
+        setInquiries(globalData.inquiries || storedInquiries);
+      }
+    } catch (e) {
+      console.warn('Load data error:', e);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
   useEffect(() => {
+    let timer = null;
     if (isOpen) {
       const authed = sessionStorage.getItem('wordquest_admin_auth') === 'true';
       setIsAuthenticated(authed);
       if (authed) {
         loadData();
+        // 5秒ごとにクラウドデータを自動ポーリングしてリアルタイム反映
+        timer = setInterval(() => {
+          loadData();
+        }, 5000);
       }
     }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
   }, [isOpen]);
 
   if (!isOpen) return null;

@@ -1,12 +1,12 @@
 /**
- * 共通データベース層 (Cloud Firestore / Web & 販売用スマホアプリ共通)
+ * 共通クラウドデータベース層 (Cloud Firestore / Web & 販売用スマホアプリ共通)
  * 
  * コレクション設計:
- * - users: ユーザープロフィール (UID, Email, isPremium, EXP, Streak, 最終学習日)
+ * - users: ユーザープロフィール & 登録アカウント (UID, Email, smartphoneOs, EXP, Streak, 登録日時)
+ * - inquiries: ユーザーからの問い合わせ・単語ミス報告・要望・質問
  * - user_progress: 学習進捗 (masteredWordIds, reviewWordIds, クイズ履歴)
- * - words_master: 英単語マスターデータ (全単語・販売用単語フラグ)
  * - rankings_weekly: 全体ランキングデータ
- * - survey_votes: アプリ版OSアンケート投票データ
+ * - survey_stats: 利用端末OS集計
  */
 
 import {
@@ -23,87 +23,172 @@ import {
   increment,
 } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from './firebase';
-import { WORDS_DATABASE } from '../data/words';
 
 export const cloudDB = {
-  // 1. ユーザープロファイル・購入ステータスの同期
-  async syncUserProfile(user, progress) {
-    if (!isFirebaseConfigured || !db || !user.email) return;
+  // 1. 新規アカウント・プロフィールのクラウド同期
+  async registerOrUpdateAccount(account) {
+    if (!isFirebaseConfigured || !db || !account.email) return false;
 
     try {
-      const userRef = doc(db, 'users', user.id || user.email);
-      const data = {
-        email: user.email,
-        displayName: user.name,
-        avatar: user.avatar || '🎓',
-        isPremium: user.isPremium || false,
-        purchasePlatform: user.purchasePlatform || 'none', // 'google_play' | 'app_store'
-        totalExp: progress.totalExp || 0,
-        streak: progress.streak || 1,
-        lastStudyDate: progress.lastStudyDate || new Date().toISOString().split('T')[0],
+      const emailKey = account.email.trim().toLowerCase();
+      const userRef = doc(db, 'users', emailKey);
+      
+      const payload = {
+        email: emailKey,
+        name: account.name || '学習者',
+        avatar: account.avatar || '🎓',
+        smartphoneOs: account.smartphoneOs || 'ios',
+        totalExp: account.progress?.totalExp || 0,
+        streak: account.progress?.streak || 0,
+        enableReminderEmail: account.enableReminderEmail !== false,
+        registeredAt: account.registeredAt || new Date().toISOString(),
         updatedAt: serverTimestamp(),
       };
 
-      await setDoc(userRef, data, { merge: true });
+      await setDoc(userRef, payload, { merge: true });
 
-      // 進捗データ（暗記単語リスト）の保存
-      const progressRef = doc(db, 'user_progress', user.id || user.email);
-      await setDoc(progressRef, {
-        masteredWordIds: progress.masteredWordIds || [],
-        reviewWordIds: progress.reviewWordIds || [],
-        quizzesCompleted: progress.quizzesCompleted || 0,
-        correctAnswersCount: progress.correctAnswersCount || 0,
-        updatedAt: serverTimestamp(),
+      // OS集計ドキュメントのカウント更新
+      const statsRef = doc(db, 'system_stats', 'os_summary');
+      const osField = (account.smartphoneOs || 'ios').toLowerCase().includes('android')
+        ? 'androidCount'
+        : (account.smartphoneOs || 'ios').toLowerCase().includes('ios')
+        ? 'iosCount'
+        : 'otherCount';
+
+      await setDoc(statsRef, {
+        [osField]: increment(1),
+        totalUsers: increment(1),
+        lastUpdated: serverTimestamp(),
       }, { merge: true });
 
-      console.log('✅ Cloud DB: ユーザー進捗をクラウドに同期しました');
+      console.log('✅ Cloud DB: アカウントをクラウドに同期しました:', emailKey);
+      return true;
     } catch (err) {
-      console.error('Cloud DB Sync Error:', err);
+      console.error('Cloud DB Account Sync Error:', err);
+      return false;
     }
   },
 
-  // 2. クラウドから進捗データの読み込み
-  async fetchUserProfile(userIdOrEmail) {
-    if (!isFirebaseConfigured || !db || !userIdOrEmail) return null;
+  // 2. クラウドに登録された全ユーザーアカウントの取得（管理者画面用）
+  async fetchAllAccounts() {
+    if (!isFirebaseConfigured || !db) return null;
 
     try {
-      const userRef = doc(db, 'users', userIdOrEmail);
-      const userSnap = await getDoc(userRef);
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, orderBy('registeredAt', 'desc'), limit(100));
+      const snap = await getDocs(q);
 
-      if (!userSnap.exists()) return null;
+      const accountsMap = {};
+      snap.forEach((doc) => {
+        const d = doc.data();
+        accountsMap[doc.id] = {
+          email: d.email || doc.id,
+          name: d.name || d.displayName || '学習者',
+          avatar: d.avatar || '🎓',
+          smartphoneOs: d.smartphoneOs || '未設定',
+          registeredAt: d.registeredAt || new Date().toISOString(),
+          progress: {
+            totalExp: d.totalExp || 0,
+            streak: d.streak || 0,
+          }
+        };
+      });
 
-      const userData = userSnap.data();
-      const progressRef = doc(db, 'user_progress', userIdOrEmail);
-      const progressSnap = await getDoc(progressRef);
-      const progressData = progressSnap.exists() ? progressSnap.data() : {};
-
-      return {
-        user: {
-          id: userIdOrEmail,
-          email: userData.email,
-          name: userData.displayName,
-          avatar: userData.avatar,
-          isPremium: userData.isPremium,
-          purchasePlatform: userData.purchasePlatform,
-          isLoggedIn: true,
-        },
-        progress: {
-          totalExp: userData.totalExp || 0,
-          streak: userData.streak || 1,
-          lastStudyDate: userData.lastStudyDate,
-          masteredWordIds: progressData.masteredWordIds || [],
-          reviewWordIds: progressData.reviewWordIds || [],
-          quizzesCompleted: progressData.quizzesCompleted || 0,
-          correctAnswersCount: progressData.correctAnswersCount || 0,
-        }
-      };
+      return accountsMap;
     } catch (err) {
-      console.error('Cloud DB Fetch Error:', err);
+      console.error('Cloud DB Fetch All Accounts Error:', err);
       return null;
     }
   },
 
-  // 3. 全体ランキングの取得（Web & アプリ共通）
+  // 3. お問い合わせ・単語ミス報告のクラウド保存
+  async submitInquiry(inquiry) {
+    if (!isFirebaseConfigured || !db) return false;
+
+    try {
+      const inqRef = doc(db, 'inquiries', inquiry.id || ('inq_' + Date.now()));
+      const payload = {
+        ...inquiry,
+        createdAt: inquiry.createdAt || new Date().toISOString(),
+        serverCreatedAt: serverTimestamp(),
+      };
+
+      await setDoc(inqRef, payload, { merge: true });
+      console.log('✅ Cloud DB: お問い合わせをクラウドに保存しました');
+      return true;
+    } catch (err) {
+      console.error('Cloud DB Submit Inquiry Error:', err);
+      return false;
+    }
+  },
+
+  // 4. クラウドのお問い合わせ一覧取得（管理者画面用）
+  async fetchAllInquiries() {
+    if (!isFirebaseConfigured || !db) return null;
+
+    try {
+      const inqsRef = collection(db, 'inquiries');
+      const q = query(inqsRef, orderBy('createdAt', 'desc'), limit(100));
+      const snap = await getDocs(q);
+
+      const list = [];
+      snap.forEach((doc) => {
+        const d = doc.data();
+        list.push({
+          id: doc.id,
+          category: d.category || 'other',
+          targetWord: d.targetWord || '',
+          message: d.message || '',
+          email: d.email || '',
+          user: d.user || 'ゲスト',
+          status: d.status || 'pending',
+          createdAt: d.createdAt || new Date().toISOString(),
+        });
+      });
+
+      return list;
+    } catch (err) {
+      console.error('Cloud DB Fetch Inquiries Error:', err);
+      return null;
+    }
+  },
+
+  // 5. お問い合わせステータスの更新（未対応 / 完了）
+  async updateInquiryStatus(id, status) {
+    if (!isFirebaseConfigured || !db || !id) return;
+
+    try {
+      const inqRef = doc(db, 'inquiries', id);
+      await updateDoc(inqRef, {
+        status: status,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error('Cloud DB Update Inquiry Status Error:', err);
+    }
+  },
+
+  // 6. ユーザー学習進捗の同期
+  async syncUserProfile(user, progress) {
+    if (!isFirebaseConfigured || !db || !user.email) return;
+
+    try {
+      const userRef = doc(db, 'users', user.email.trim().toLowerCase());
+      await setDoc(userRef, {
+        email: user.email,
+        name: user.name,
+        avatar: user.avatar || '🎓',
+        totalExp: progress.totalExp || 0,
+        streak: progress.streak || 0,
+        lastStudyDate: progress.lastStudyDate || new Date().toISOString().split('T')[0],
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+    } catch (err) {
+      console.error('Cloud DB Sync User Progress Error:', err);
+    }
+  },
+
+  // 7. 全体ランキングの取得
   async fetchGlobalRankings(limitCount = 20) {
     if (!isFirebaseConfigured || !db) return null;
 
@@ -117,11 +202,10 @@ export const cloudDB = {
         const d = doc.data();
         list.push({
           id: doc.id,
-          name: d.displayName || '学習者',
+          name: d.name || d.displayName || '学習者',
           exp: d.totalExp || 0,
-          streak: d.streak || 1,
+          streak: d.streak || 0,
           avatar: d.avatar || '🎓',
-          isPremium: d.isPremium || false,
         });
       });
 
@@ -132,52 +216,6 @@ export const cloudDB = {
     } catch (err) {
       console.error('Cloud DB Rankings Error:', err);
       return null;
-    }
-  },
-
-  // 4. OSアンケートのクラウド投票
-  async submitSurveyVote(choice, email = '') {
-    if (!isFirebaseConfigured || !db) return;
-
-    try {
-      const statsRef = doc(db, 'survey_stats', 'summary');
-      const field = choice === 'ios' ? 'iosVotes' : choice === 'android' ? 'androidVotes' : 'bothVotes';
-
-      await setDoc(statsRef, {
-        [field]: increment(1),
-        totalVotes: increment(1),
-        lastUpdated: serverTimestamp(),
-      }, { merge: true });
-
-      if (email) {
-        const emailsRef = collection(db, 'survey_emails');
-        await setDoc(doc(emailsRef), {
-          email,
-          choice,
-          createdAt: serverTimestamp(),
-        });
-      }
-    } catch (err) {
-      console.error('Cloud DB Survey Error:', err);
-    }
-  },
-
-  // 5. 単語マスターデータ初期同期（管理用）
-  async seedWordsToCloud() {
-    if (!isFirebaseConfigured || !db) return;
-
-    try {
-      for (const word of WORDS_DATABASE) {
-        const wordRef = doc(db, 'words_master', String(word.id));
-        await setDoc(wordRef, {
-          ...word,
-          isPremiumOnly: word.id > 20, // 20単語以降を有料販売用とする例
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
-      }
-      console.log('✅ 単語マスターデータをクラウドDBに投入完了');
-    } catch (err) {
-      console.error('Seed Words Error:', err);
     }
   }
 };
