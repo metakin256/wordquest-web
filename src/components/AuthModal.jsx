@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { X, Mail, Lock, User, Check, ArrowRight, ShieldCheck, Smartphone, Apple, PlayCircle, HelpCircle } from 'lucide-react';
+import { X, Mail, Lock, User, Check, ArrowRight, ShieldCheck, Smartphone, Apple, PlayCircle, HelpCircle, AlertCircle, LogIn, UserPlus } from 'lucide-react';
 import { storage } from '../services/storage';
 import { sound } from '../services/sound';
 
 export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
-  const [isSignUp, setIsSignUp] = useState(true); // 新規登録をデフォルトに
+  // デフォルトは「ログイン」タブ（登録済みユーザーがすぐログインできるように）
+  const [isSignUp, setIsSignUp] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -18,6 +19,7 @@ export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
   const [enableReminderEmail, setEnableReminderEmail] = useState(true);
 
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
   if (!isOpen) return null;
@@ -27,33 +29,57 @@ export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!email || !password) return;
+    setErrorMsg('');
+    setSuccessMsg('');
+
+    if (!email || !password) {
+      setErrorMsg('メールアドレスとパスワードを入力してください。');
+      return;
+    }
 
     setLoading(true);
+
     setTimeout(() => {
-      const finalOs = selectedOs === 'other' ? (otherOsText.trim() || 'その他') : selectedOs;
+      if (isSignUp) {
+        // 新規アカウント作成
+        const finalOs = selectedOs === 'other' ? (otherOsText.trim() || 'その他') : selectedOs;
+        const userData = {
+          name: name.trim() || email.split('@')[0],
+          email: email.trim(),
+          avatar: avatar,
+          smartphoneOs: finalOs,
+          enableReminderEmail: enableReminderEmail,
+        };
 
-      const updatedUser = {
-        ...currentUser,
-        name: isSignUp ? (name || '高校生学習者') : (name || email.split('@')[0]),
-        email: email,
-        isLoggedIn: true,
-        avatar: avatar,
-        smartphoneOs: isSignUp ? finalOs : (currentUser.smartphoneOs || finalOs),
-        enableReminderEmail: isSignUp ? enableReminderEmail : (currentUser.enableReminderEmail ?? true),
-      };
-
-      storage.saveUser(updatedUser);
-      onUserUpdated(updatedUser);
+        const result = storage.registerAccount(userData, password);
+        if (result.success) {
+          onUserUpdated(result.user);
+          setSuccessMsg('アカウントを作成しました！');
+          sound.playCorrect();
+          setTimeout(() => {
+            setSuccessMsg('');
+            onClose();
+          }, 800);
+        } else {
+          setErrorMsg(result.error || '登録に失敗しました。');
+        }
+      } else {
+        // ログイン処理
+        const result = storage.loginAccount(email, password);
+        if (result.success) {
+          onUserUpdated(result.user);
+          setSuccessMsg('ログインしました！学習データを復元しました。');
+          sound.playCorrect();
+          setTimeout(() => {
+            setSuccessMsg('');
+            onClose();
+          }, 800);
+        } else {
+          setErrorMsg(result.error || 'ログインに失敗しました。');
+        }
+      }
       setLoading(false);
-      setSuccessMsg(isSignUp ? 'アカウントを作成しました！' : 'ログインしました！');
-      sound.playCorrect();
-
-      setTimeout(() => {
-        setSuccessMsg('');
-        onClose();
-      }, 1000);
-    }, 500);
+    }, 400);
   };
 
   const handleLogout = () => {
@@ -73,7 +99,7 @@ export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card auth-modal-card" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close-btn" onClick={onClose}>
+        <button className="modal-close-btn" onClick={onClose} title="閉じる">
           <X size={20} />
         </button>
 
@@ -92,7 +118,7 @@ export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
 
             <div className="profile-sync-badge">
               <ShieldCheck size={16} className="text-success" />
-              <span>学習進捗・さぼり防止通知はクラウド連携中</span>
+              <span>学習進捗・連続記録・さぼり通知はクラウド連携中</span>
             </div>
 
             <button className="logout-btn" onClick={handleLogout}>
@@ -101,15 +127,53 @@ export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
           </div>
         ) : (
           <div>
+            {/* 🔑 ログイン / 🎓 新規登録 切り替えタブ */}
+            <div className="auth-tabs-header">
+              <button
+                type="button"
+                className={`auth-tab-btn ${!isSignUp ? 'active' : ''}`}
+                onClick={() => {
+                  setIsSignUp(false);
+                  setErrorMsg('');
+                }}
+              >
+                <LogIn size={16} />
+                <span>ログイン</span>
+              </button>
+
+              <button
+                type="button"
+                className={`auth-tab-btn ${isSignUp ? 'active' : ''}`}
+                onClick={() => {
+                  setIsSignUp(true);
+                  setErrorMsg('');
+                }}
+              >
+                <UserPlus size={16} />
+                <span>新規登録 (無料)</span>
+              </button>
+            </div>
+
             <div className="auth-modal-header">
-              <h3 className="modal-title">{isSignUp ? '無料アカウント作成' : 'メールアドレスでログイン'}</h3>
+              <h3 className="modal-title">
+                {isSignUp ? '無料アカウント作成' : 'メールアドレスでログイン'}
+              </h3>
               <p className="modal-desc">
                 {isSignUp
-                  ? '登録すると暗記データが保存され、さぼり防止リマインダーやアプリ版へのデータ引き継ぎが利用できます。'
-                  : 'ログインして保存された学習データを復元します。'}
+                  ? '登録すると暗記進捗が保存され、さぼり防止リマインダーやアプリ版へのデータ引き継ぎが利用できます。'
+                  : '登録済みのメールアドレスとパスワードで学習データを復元します。'}
               </p>
             </div>
 
+            {/* エラーメッセージ */}
+            {errorMsg && (
+              <div className="auth-error-banner">
+                <AlertCircle size={18} />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {/* 成功メッセージ */}
             {successMsg && (
               <div className="success-banner">
                 <Check size={18} />
@@ -252,7 +316,7 @@ export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
               )}
 
               <button type="submit" className="auth-submit-btn" disabled={loading}>
-                {loading ? '処理中...' : isSignUp ? '登録して暗記をスタート' : 'ログイン'}
+                {loading ? '処理中...' : isSignUp ? '登録して暗記をスタート' : 'ログインしてデータを復元'}
                 <ArrowRight size={16} />
               </button>
             </form>
@@ -261,15 +325,29 @@ export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
               {isSignUp ? (
                 <p>
                   既にアカウントをお持ちですか？{' '}
-                  <button type="button" className="text-link" onClick={() => setIsSignUp(false)}>
-                    ログイン
+                  <button
+                    type="button"
+                    className="text-link"
+                    onClick={() => {
+                      setIsSignUp(false);
+                      setErrorMsg('');
+                    }}
+                  >
+                    ログインへ切り替え
                   </button>
                 </p>
               ) : (
                 <p>
                   アカウントをお持ちでないですか？{' '}
-                  <button type="button" className="text-link" onClick={() => setIsSignUp(true)}>
-                    新規登録（無料）
+                  <button
+                    type="button"
+                    className="text-link"
+                    onClick={() => {
+                      setIsSignUp(true);
+                      setErrorMsg('');
+                    }}
+                  >
+                    新規登録（無料）へ切り替え
                   </button>
                 </p>
               )}

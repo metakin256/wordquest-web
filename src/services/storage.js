@@ -65,6 +65,82 @@ export const storage = {
     }
   },
 
+  // 登録済みアカウント一覧の取得
+  getAccounts() {
+    try {
+      const data = localStorage.getItem('wordquest_accounts');
+      return data ? JSON.parse(data) : {};
+    } catch {
+      return {};
+    }
+  },
+
+  // アカウント新規作成
+  registerAccount(userData, password) {
+    const accounts = this.getAccounts();
+    const emailKey = userData.email.trim().toLowerCase();
+
+    const newAccount = {
+      ...userData,
+      email: emailKey,
+      password: password,
+      isLoggedIn: true,
+      progress: this.getProgress(),
+      wordStats: this.getWordStatsMap(),
+      registeredAt: new Date().toISOString(),
+    };
+
+    accounts[emailKey] = newAccount;
+    localStorage.setItem('wordquest_accounts', JSON.stringify(accounts));
+    this.saveUser(newAccount);
+    return { success: true, user: newAccount };
+  },
+
+  // アカウントログイン（過去のデータ復元）
+  loginAccount(email, password) {
+    const accounts = this.getAccounts();
+    const emailKey = email.trim().toLowerCase();
+    const account = accounts[emailKey];
+
+    // もしアカウントが見つからない場合
+    if (!account) {
+      // ユーザーが以前ゲストや単一ユーザーとして保存していた場合のフォールバック
+      const currentUser = this.getUser();
+      if (currentUser?.email && currentUser.email.toLowerCase() === emailKey) {
+        const restored = { ...currentUser, isLoggedIn: true };
+        this.saveUser(restored);
+        return { success: true, user: restored };
+      }
+      return {
+        success: false,
+        error: 'アカウントが見つかりません。上の「新規登録」タブからアカウントを作成してください。'
+      };
+    }
+
+    // パスワード確認
+    if (account.password && password && account.password !== password) {
+      return {
+        success: false,
+        error: 'パスワードが間違っています。'
+      };
+    }
+
+    // 進捗データと単語統計を復元
+    if (account.progress) {
+      localStorage.setItem(STORAGE_KEYS.PROGRESS, JSON.stringify(account.progress));
+    }
+    if (account.wordStats) {
+      localStorage.setItem(STORAGE_KEYS.WORD_STATS, JSON.stringify(account.wordStats));
+    }
+
+    const updatedUser = {
+      ...account,
+      isLoggedIn: true,
+    };
+    this.saveUser(updatedUser);
+    return { success: true, user: updatedUser };
+  },
+
   // 単語ごとの統計 (asked, correct, streak)
   // ※オリジナルアプリ版と完全一致: streak >= 3 で「習得済み（mastered）」
   getWordStatsMap() {
