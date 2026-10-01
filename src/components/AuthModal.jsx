@@ -27,7 +27,7 @@ export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
   const currentUser = storage.getUser();
   const avatarOptions = ['🎓', '🦁', '🚀', '🌸', '⚡', '🎯', '📚', '✨', '🦊', '🐱'];
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
@@ -39,7 +39,7 @@ export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
 
     setLoading(true);
 
-    setTimeout(() => {
+    try {
       if (isSignUp) {
         // 新規アカウント作成
         const finalOs = selectedOs === 'other' ? (otherOsText.trim() || 'その他') : selectedOs;
@@ -51,7 +51,7 @@ export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
           enableReminderEmail: enableReminderEmail,
         };
 
-        const result = storage.registerAccount(userData, password);
+        const result = await storage.registerAccount(userData, password);
         if (result.success) {
           onUserUpdated(result.user);
           setSuccessMsg('アカウントを作成しました！');
@@ -65,7 +65,7 @@ export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
         }
       } else {
         // ログイン処理
-        const result = storage.loginAccount(email, password);
+        const result = await storage.loginAccount(email, password);
         if (result.success) {
           onUserUpdated(result.user);
           setSuccessMsg('ログインしました！学習データを復元しました。');
@@ -78,8 +78,11 @@ export default function AuthModal({ isOpen, onClose, onUserUpdated }) {
           setErrorMsg(result.error || 'ログインに失敗しました。');
         }
       }
+    } catch (e) {
+      setErrorMsg('エラーが発生しました。もう一度お試しください。');
+    } finally {
       setLoading(false);
-    }, 400);
+    }
   };
 
   const handleLogout = () => {

@@ -3752,6 +3752,20 @@
   border-radius: 12px;
 }
 
+.privacy-notice-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 10px;
+  font-size: 0.8rem;
+  color: #a7f3d0;
+  line-height: 1.45;
+}
+
 .admin-table {
   width: 100%;
   border-collapse: collapse;

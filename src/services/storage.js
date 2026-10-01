@@ -1,6 +1,7 @@
 import { cloudDB } from './database';
 import { isFirebaseConfigured } from './firebase';
 import { cloudSync } from './cloudSync';
+import { cryptoService } from './crypto';
 
 const STORAGE_KEYS = {
   USER: 'wordquest_user',
@@ -77,15 +78,16 @@ export const storage = {
     }
   },
 
-  // アカウント新規作成
-  registerAccount(userData, password) {
+  // アカウント新規作成（パスワードの暗号化・不可逆ハッシュ化）
+  async registerAccount(userData, password) {
     const accounts = this.getAccounts();
     const emailKey = userData.email.trim().toLowerCase();
+    const passwordHash = await cryptoService.hashPassword(password);
 
     const newAccount = {
       ...userData,
       email: emailKey,
-      password: password,
+      passwordHash: passwordHash,
       isLoggedIn: true,
       progress: this.getProgress(),
       wordStats: this.getWordStatsMap(),
@@ -96,21 +98,22 @@ export const storage = {
     localStorage.setItem('wordquest_accounts', JSON.stringify(accounts));
     this.saveUser(newAccount);
     
-    // クラウドへ即時同期 (スマホ -> PCリアルタイム連携)
-    cloudSync.syncAccount(newAccount);
+    // クラウドへ安全に同期 (パスワードを除外して同期)
+    const safeAccount = { ...newAccount };
+    delete safeAccount.password;
+    cloudSync.syncAccount(safeAccount);
 
     return { success: true, user: newAccount };
   },
 
-  // アカウントログイン（過去のデータ復元）
-  loginAccount(email, password) {
+  // アカウントログイン（パスワードハッシュ照合）
+  async loginAccount(email, password) {
     const accounts = this.getAccounts();
     const emailKey = email.trim().toLowerCase();
     const account = accounts[emailKey];
 
     // もしアカウントが見つからない場合
     if (!account) {
-      // ユーザーが以前ゲストや単一ユーザーとして保存していた場合のフォールバック
       const currentUser = this.getUser();
       if (currentUser?.email && currentUser.email.toLowerCase() === emailKey) {
         const restored = { ...currentUser, isLoggedIn: true };
@@ -123,8 +126,13 @@ export const storage = {
       };
     }
 
-    // パスワード確認
-    if (account.password && password && account.password !== password) {
+    // パスワード確認（ハッシュ照合 ＆ 互換性チェック）
+    const inputHash = await cryptoService.hashPassword(password);
+    const isMatched = account.passwordHash 
+      ? (account.passwordHash === inputHash)
+      : (account.password === password);
+
+    if (!isMatched) {
       return {
         success: false,
         error: 'パスワードが間違っています。'

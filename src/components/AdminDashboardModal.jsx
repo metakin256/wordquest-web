@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { storage } from '../services/storage';
 import { cloudSync } from '../services/cloudSync';
+import { cryptoService } from '../services/crypto';
 
 // 確認用デモデータ（「デモデータ投入」ボタンを押した時のみ追加される）
 const SAMPLE_INQUIRIES = [
@@ -39,7 +40,7 @@ const SAMPLE_INQUIRIES = [
     category: 'word_typo',
     targetWord: 'abandon',
     message: '日本語訳の「見捨てる」に加えて「諦める」の意味も出題文の解説に加えていただけると嬉しいです！',
-    email: 'student_a@example.com',
+    email: '',
     user: '高校2年生 (レオ)',
     status: 'pending',
     createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
@@ -49,7 +50,7 @@ const SAMPLE_INQUIRIES = [
     category: 'feature_request',
     targetWord: '',
     message: '毎日夜21時にスマホへ通知が来る機能がとても便利です。通知の時間を自由に変更できるようになるとさらに最高です！',
-    email: 'tanaka_study@example.com',
+    email: '',
     user: '田中 (きなこ)',
     status: 'completed',
     createdAt: new Date(Date.now() - 3600000 * 8).toISOString(),
@@ -59,7 +60,7 @@ const SAMPLE_INQUIRIES = [
     category: 'question',
     targetWord: 'accommodate',
     message: 'この単語は共通テストでもよく出ますか？長文読解での頻出度を教えてほしいです。',
-    email: 'examinee2026@example.com',
+    email: '',
     user: '受験生S',
     status: 'pending',
     createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
@@ -69,7 +70,7 @@ const SAMPLE_INQUIRIES = [
     category: 'word_typo',
     targetWord: 'benevolent',
     message: '発音記号のアクセント位置が「ne」の部分になっているか確認をお願いできますでしょうか。',
-    email: 'english_fan@example.com',
+    email: '',
     user: 'ソラ',
     status: 'pending',
     createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
@@ -229,13 +230,20 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
     const exportData = {
       exportDate: new Date().toISOString(),
       inquiriesCount: inquiries.length,
-      inquiries,
+      inquiries: inquiries.map(i => ({
+        id: i.id,
+        category: i.category,
+        targetWord: i.targetWord,
+        message: i.message,
+        user: i.user,
+        status: i.status,
+        createdAt: i.createdAt,
+      })),
       accountsSummary: {
         totalAccounts: Object.keys(accounts).length,
         accounts: Object.values(accounts).map(a => ({
-          email: a.email,
-          name: a.name,
-          smartphoneOs: a.smartphoneOs,
+          name: a.name || '学習者',
+          smartphoneOs: a.smartphoneOs || '未設定',
           registeredAt: a.registeredAt,
           totalExp: a.progress?.totalExp || 0,
           streak: a.progress?.streak || 0,
@@ -267,7 +275,6 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
     const matchQuery = !q ||
       (item.targetWord && item.targetWord.toLowerCase().includes(q)) ||
       (item.message && item.message.toLowerCase().includes(q)) ||
-      (item.email && item.email.toLowerCase().includes(q)) ||
       (item.user && item.user.toLowerCase().includes(q));
     return matchCat && matchStatus && matchQuery;
   });
@@ -519,7 +526,7 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
                     <Search size={16} className="search-icon" />
                     <input
                       type="text"
-                      placeholder="単語名、メッセージ、メールで検索..."
+                      placeholder="単語名、メッセージ、ニックネームで検索..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="admin-search-input"
@@ -607,13 +614,7 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
 
                           <div className="inquiry-card-footer">
                             <div className="inquiry-user-info">
-                              <span className="inquiry-username">👤 {inq.user || 'ゲスト'}</span>
-                              {inq.email && (
-                                <a href={`mailto:${inq.email}`} className="inquiry-email-link">
-                                  <Mail size={13} />
-                                  {inq.email}
-                                </a>
-                              )}
+                              <span className="inquiry-username">👤 {inq.user || '学習者'}</span>
                             </div>
 
                             <div className="inquiry-card-actions">
@@ -769,6 +770,11 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
                     </button>
                   </div>
 
+                  <div className="privacy-notice-banner">
+                    <ShieldCheck size={16} className="text-success" />
+                    <span>プライバシー保護適用中：個人情報保護のため、メールアドレスやパスワードは完全に暗号化・秘匿化され、管理者画面には学習ニックネームと継続日数・学習統計のみが表示されます。</span>
+                  </div>
+
                   {totalRegistered === 0 ? (
                     <div className="empty-inquiries-box">
                       <Users size={36} className="empty-icon" />
@@ -781,11 +787,10 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
                         <thead>
                           <tr>
                             <th>ニックネーム</th>
-                            <th>メールアドレス</th>
-                            <th>利用スマホOS</th>
-                            <th>累計EXP</th>
                             <th>連続日数</th>
-                            <th>登録日時</th>
+                            <th>獲得EXP</th>
+                            <th>利用スマホOS</th>
+                            <th>登録日</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -794,22 +799,21 @@ export default function AdminDashboardModal({ isOpen, onClose }) {
                               <td>
                                 <div className="table-user-cell">
                                   <span className="table-avatar">{acc.avatar || '🎓'}</span>
-                                  <span className="table-username">{acc.name}</span>
+                                  <span className="table-username">{acc.name || '学習者'}</span>
                                 </div>
                               </td>
-                              <td className="table-email">{acc.email}</td>
+                              <td className="table-num">
+                                <Flame size={14} className="text-danger" />
+                                <span>{acc.progress?.streak || 0} 日連続</span>
+                              </td>
+                              <td className="table-num">
+                                <Zap size={14} className="text-warning" />
+                                <span>{acc.progress?.totalExp || 0} EXP</span>
+                              </td>
                               <td>
                                 <span className={`table-os-badge ${acc.smartphoneOs ? acc.smartphoneOs.toLowerCase() : 'none'}`}>
                                   {acc.smartphoneOs || '未設定'}
                                 </span>
-                              </td>
-                              <td className="table-num">
-                                <Zap size={13} className="text-warning" />
-                                {acc.progress?.totalExp || 0}
-                              </td>
-                              <td className="table-num">
-                                <Flame size={13} className="text-danger" />
-                                {acc.progress?.streak || 0}日
                               </td>
                               <td className="table-date">
                                 {acc.registeredAt ? new Date(acc.registeredAt).toLocaleDateString('ja-JP') : '-'}
