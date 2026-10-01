@@ -7,6 +7,7 @@ import RankingView from './components/RankingView';
 import WordListView from './components/WordListView';
 import AuthModal from './components/AuthModal';
 import ContactModal from './components/ContactModal';
+import AdminDashboardModal from './components/AdminDashboardModal';
 
 import { WORDS_DATABASE, generateOptionsForWord } from './data/words';
 import { storage } from './services/storage';
@@ -25,9 +26,14 @@ export default function App() {
   const [sessionWords, setSessionWords] = useState([]);
   const [lastResult, setLastResult] = useState(null);
 
-  // ログイン・登録モーダル & お問い合わせモーダル
+  // モーダル状態
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isContactOpen, setIsContactOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  
+  // お問い合わせの初期値（単語ミス報告用）
+  const [contactInitialWord, setContactInitialWord] = useState('');
+  const [contactInitialCategory, setContactInitialCategory] = useState('word_typo');
 
   // 問題数の変更・保存
   const handleSetQuestionCount = (count) => {
@@ -35,7 +41,7 @@ export default function App() {
     storage.saveQuestionCount(count);
   };
 
-  // テーマ適用 & サボり防止リマインダー定期チェック
+  // テーマ適用
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     storage.saveTheme(theme);
@@ -74,6 +80,20 @@ export default function App() {
     setCurrentView('result');
   };
 
+  // 単語ミス報告クイックオープン
+  const handleReportWord = (wordObj) => {
+    setContactInitialCategory('word_typo');
+    setContactInitialWord(wordObj?.word || '');
+    setIsContactOpen(true);
+  };
+
+  // 一般のお問い合わせオープン
+  const handleOpenGeneralContact = () => {
+    setContactInitialCategory('word_typo');
+    setContactInitialWord('');
+    setIsContactOpen(true);
+  };
+
   return (
     <div className="app-layout">
       <div className="app-bg-glow"></div>
@@ -87,7 +107,8 @@ export default function App() {
         isMuted={isMuted}
         setIsMuted={setIsMuted}
         onOpenAuth={() => setIsAuthOpen(true)}
-        onOpenContact={() => setIsContactOpen(true)}
+        onOpenContact={handleOpenGeneralContact}
+        onOpenAdmin={() => setIsAdminOpen(true)}
         currentTab={currentView}
         setCurrentTab={(tab) => setCurrentView(tab)}
       />
@@ -106,6 +127,7 @@ export default function App() {
             onOpenWordList={() => setCurrentView('wordlist')}
             onOpenRanking={() => setCurrentView('ranking')}
             onOpenAuth={() => setIsAuthOpen(true)}
+            onOpenContact={handleOpenGeneralContact}
           />
         )}
 
@@ -114,6 +136,7 @@ export default function App() {
             words={sessionWords}
             onComplete={handleSessionComplete}
             onBack={() => setCurrentView('home')}
+            onReportWord={handleReportWord}
           />
         )}
 
@@ -125,6 +148,7 @@ export default function App() {
             }}
             onGoHome={() => setCurrentView('home')}
             onOpenRanking={() => setCurrentView('ranking')}
+            onReportWord={handleReportWord}
           />
         )}
 
@@ -133,7 +157,11 @@ export default function App() {
         )}
 
         {currentView === 'wordlist' && (
-          <WordListView progress={progress} onBack={() => setCurrentView('home')} />
+          <WordListView
+            progress={progress}
+            onBack={() => setCurrentView('home')}
+            onReportWord={handleReportWord}
+          />
         )}
       </main>
 
@@ -142,8 +170,12 @@ export default function App() {
         <div className="footer-inner">
           <p>© 2026 苦しんで覚える英単語 Web版. 高校生特化 爆速4択英単語暗記</p>
           <div className="footer-links">
-            <button className="footer-link contact-link-highlight" onClick={() => setIsContactOpen(true)}>
+            <button className="footer-link contact-link-highlight" onClick={handleOpenGeneralContact}>
               📩 お問い合わせ・ご意見箱
+            </button>
+            <span className="dot-sep">•</span>
+            <button className="footer-link admin-link-highlight" onClick={() => setIsAdminOpen(true)}>
+              📊 管理者ダッシュボード（問合せ＆OS確認）
             </button>
             <span className="dot-sep">•</span>
             <button className="footer-link" onClick={() => setIsAuthOpen(true)}>
@@ -173,6 +205,14 @@ export default function App() {
         isOpen={isContactOpen}
         onClose={() => setIsContactOpen(false)}
         user={user}
+        initialCategory={contactInitialCategory}
+        initialWord={contactInitialWord}
+      />
+
+      {/* 管理者ダッシュボードモーダル（お問い合わせ一覧＆OS比率確認） */}
+      <AdminDashboardModal
+        isOpen={isAdminOpen}
+        onClose={() => setIsAdminOpen(false)}
       />
     </div>
   );

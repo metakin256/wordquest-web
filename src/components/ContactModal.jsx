@@ -1,14 +1,29 @@
-import React, { useState } from 'react';
-import { X, Send, MessageSquare, Check, HelpCircle, AlertTriangle, Lightbulb, MessageCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Send, MessageSquare, Check, HelpCircle, AlertTriangle, Lightbulb, MessageCircle, Sparkles } from 'lucide-react';
 import { sound } from '../services/sound';
 
-export default function ContactModal({ isOpen, onClose, user }) {
-  const [category, setCategory] = useState('word_typo'); // 'word_typo' | 'feature_request' | 'question' | 'other'
-  const [targetWord, setTargetWord] = useState('');
+export default function ContactModal({
+  isOpen,
+  onClose,
+  user,
+  initialCategory = 'word_typo',
+  initialWord = '',
+}) {
+  const [category, setCategory] = useState(initialCategory);
+  const [targetWord, setTargetWord] = useState(initialWord);
   const [message, setMessage] = useState('');
   const [contactEmail, setContactEmail] = useState(user?.email || '');
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setCategory(initialCategory || 'word_typo');
+      setTargetWord(initialWord || '');
+      setContactEmail(user?.email || '');
+      setIsSuccess(false);
+    }
+  }, [isOpen, initialCategory, initialWord, user]);
 
   if (!isOpen) return null;
 
@@ -26,7 +41,7 @@ export default function ContactModal({ isOpen, onClose, user }) {
     setLoading(true);
 
     setTimeout(() => {
-      // ローカルストレージにお問い合わせログを保存（サーバー連携可能）
+      // ローカルストレージにお問い合わせログを保存（管理者ダッシュボードで即時閲覧可能）
       const inquiries = JSON.parse(localStorage.getItem('wordquest_inquiries') || '[]');
       const newInquiry = {
         id: 'inq_' + Date.now(),
@@ -34,10 +49,11 @@ export default function ContactModal({ isOpen, onClose, user }) {
         targetWord: targetWord.trim(),
         message: message.trim(),
         email: contactEmail.trim(),
-        user: user?.name || 'ゲスト',
+        user: user?.name || 'ゲスト学習者',
+        status: 'pending',
         createdAt: new Date().toISOString(),
       };
-      inquiries.push(newInquiry);
+      inquiries.unshift(newInquiry);
       localStorage.setItem('wordquest_inquiries', JSON.stringify(inquiries));
 
       setLoading(false);
@@ -50,7 +66,7 @@ export default function ContactModal({ isOpen, onClose, user }) {
         setTargetWord('');
         onClose();
       }, 2000);
-    }, 500);
+    }, 450);
   };
 
   return (
@@ -65,9 +81,9 @@ export default function ContactModal({ isOpen, onClose, user }) {
             <div className="thankyou-badge">
               <Check size={32} />
             </div>
-            <h3 className="modal-title" style={{ textAlign: 'center' }}>ご意見ありがとうございます！</h3>
+            <h3 className="modal-title" style={{ textAlign: 'center' }}>ご報告・ご意見ありがとうございます！</h3>
             <p className="modal-desc" style={{ textAlign: 'center', marginBottom: 0 }}>
-              送信された内容は開発者がすべて確認し、単語データの修正や機能改善に役立てさせていただきます。
+              送信された内容はすべて管理者に通知され、単語データベースの修正や機能改善に即座に反映させていただきます。
             </p>
           </div>
         ) : (
@@ -79,7 +95,7 @@ export default function ContactModal({ isOpen, onClose, user }) {
               <div>
                 <h3 className="modal-title">お問い合わせ・ご意見箱</h3>
                 <p className="modal-desc">
-                  単語の誤字・訳ミス報告、機能のご要望、疑問などをお気軽にお寄せください。
+                  英単語のスペルミス・訳の修正要望、アプリへの新機能リクエスト、疑問点などをお気軽にお寄せください。
                 </p>
               </div>
             </div>
@@ -110,11 +126,11 @@ export default function ContactModal({ isOpen, onClose, user }) {
               {/* 対象単語（単語ミスの報告時のみ表示） */}
               {category === 'word_typo' && (
                 <div className="form-group">
-                  <label className="form-label">対象の英単語（任意）</label>
+                  <label className="form-label">対象の英単語</label>
                   <input
                     type="text"
                     className="form-input"
-                    placeholder="例: abandon"
+                    placeholder="例: abandon, accommodate"
                     value={targetWord}
                     onChange={(e) => setTargetWord(e.target.value)}
                     style={{ paddingLeft: '1rem' }}
@@ -124,15 +140,19 @@ export default function ContactModal({ isOpen, onClose, user }) {
 
               {/* メッセージ本文 */}
               <div className="form-group">
-                <label className="form-label">詳細・内容 <span className="required-badge">*必須</span></label>
+                <label className="form-label">
+                  詳細・ご内容 <span className="required-badge">*必須</span>
+                </label>
                 <textarea
                   className="form-textarea"
                   placeholder={
                     category === 'word_typo'
-                      ? '例: 単語「xxx」の日本語訳が間違っているようです。正しくは〇〇ではないでしょうか？'
+                      ? '例: 単語「' + (targetWord || 'xxx') + '」の日本語訳が間違っているようです。正しくは〇〇ではないでしょうか？'
                       : category === 'feature_request'
-                      ? '例: こういう機能が欲しい、デザインをこうしてほしいなど'
-                      : 'ご自由にご記入ください。'
+                      ? '例: こういう機能が欲しい、デザインをこうしてほしい、通知時刻を選びたいなど'
+                      : category === 'question'
+                      ? '例: この単語のニュアンスの違いや使い方について教えてください。'
+                      : 'ご自由にご意見・ご感想をご記入ください。'
                   }
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
@@ -147,7 +167,7 @@ export default function ContactModal({ isOpen, onClose, user }) {
                 <input
                   type="email"
                   className="form-input"
-                  placeholder="返信をご希望の場合は入力してください"
+                  placeholder="返信をご希望の場合のみ入力してください"
                   value={contactEmail}
                   onChange={(e) => setContactEmail(e.target.value)}
                   style={{ paddingLeft: '1rem' }}
@@ -156,7 +176,7 @@ export default function ContactModal({ isOpen, onClose, user }) {
 
               <button type="submit" className="contact-submit-btn" disabled={loading || !message.trim()}>
                 <Send size={16} />
-                <span>{loading ? '送信中...' : 'ご意見を送信する'}</span>
+                <span>{loading ? '送信中...' : 'ご意見・報告を送信する'}</span>
               </button>
             </form>
           </div>

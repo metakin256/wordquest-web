@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Play, CheckCircle2, RotateCcw, Trophy, ArrowRight, Sparkles, Bell, BellRing, Settings2, Sliders, Check } from 'lucide-react';
+import { Play, CheckCircle2, RotateCcw, Trophy, ArrowRight, Sparkles, Bell, BellRing, Settings2, Sliders, Check, MessageSquare } from 'lucide-react';
 import { WORD_CATEGORIES, WORDS_DATABASE } from '../data/words';
 import { notificationService } from '../services/notification';
+import AdBanner from './AdBanner';
 
 export default function ModeSelect({
   user,
@@ -14,13 +15,14 @@ export default function ModeSelect({
   onOpenWordList,
   onOpenRanking,
   onOpenAuth,
+  onOpenContact,
 }) {
   const [notifPermission, setNotifPermission] = useState(() => notificationService.getPermission());
   const [testNotifSent, setTestNotifSent] = useState(false);
 
   const totalWordsCount = WORDS_DATABASE.length;
-  const masteredCount = (progress.masteredWordIds || []).length;
-  const reviewCount = (progress.reviewWordIds || []).length;
+  const masteredCount = progress.masteredCount ?? 0;
+  const reviewCount = progress.reviewCount ?? 0;
   const progressPercent = Math.min(100, Math.round((masteredCount / totalWordsCount) * 100));
 
   const questionCountOptions = [
@@ -175,6 +177,11 @@ export default function ModeSelect({
         </div>
       </section>
 
+      {/* 広告 / スポンサーバナー枠 */}
+      <section className="ad-section-wrap">
+        <AdBanner slot="home" />
+      </section>
+
       {/* レベル・カテゴリー選択 */}
       <section className="category-section">
         <div className="section-title-group">
@@ -242,6 +249,22 @@ export default function ModeSelect({
           </div>
         </section>
       )}
+
+      {/* お問い合わせ・ご意見箱バナー */}
+      <section className="contact-prompt-banner" onClick={() => onOpenContact()}>
+        <div className="contact-prompt-inner">
+          <div className="contact-prompt-icon">
+            <MessageSquare size={22} className="text-primary" />
+          </div>
+          <div className="contact-prompt-text">
+            <strong>単語の誤字・訳ミスを見つけましたか？</strong>
+            <p>単語ミス、追加してほしい機能、疑問点など、どんな小さなことでもお気軽にご報告ください。</p>
+          </div>
+          <button className="contact-prompt-btn">
+            ご意見・ミス報告を送る
+          </button>
+        </div>
+      </section>
     </div>
   );
 }

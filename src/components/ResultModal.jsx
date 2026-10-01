@@ -1,15 +1,17 @@
 import React, { useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { Trophy, Zap, Flame, CheckCircle2, RotateCcw, ArrowRight, Volume2, ShieldCheck } from 'lucide-react';
+import { Trophy, Zap, Flame, CheckCircle2, RotateCcw, ArrowRight, Volume2, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { sound } from '../services/sound';
+import AdBanner from './AdBanner';
 
 export default function ResultModal({
   resultData,
   onRetry,
   onGoHome,
   onOpenRanking,
+  onReportWord,
 }) {
-  const { total, correctCount, earnedExp, words, masteredIds, reviewIds } = resultData;
+  const { total, correctCount, earnedExp, words } = resultData;
   const accuracy = Math.round((correctCount / total) * 100);
 
   useEffect(() => {
@@ -73,13 +75,23 @@ export default function ResultModal({
                         <button
                           className="mini-speak-btn"
                           onClick={() => sound.speak(w.word)}
+                          title="発音"
                         >
                           <Volume2 size={14} />
                         </button>
                         <strong className="item-word">{w.word}</strong>
                         <span className="item-meaning">{w.meaning}</span>
                       </div>
-                      <span className="item-badge review-badge">要復習 (次回も出題)</span>
+                      <div className="item-right-actions">
+                        <span className="item-badge review-badge">要復習</span>
+                        <button
+                          className="item-report-btn"
+                          onClick={() => onReportWord && onReportWord(w)}
+                          title="この単語の誤字・訳ミスを報告"
+                        >
+                          <AlertTriangle size={13} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -91,7 +103,7 @@ export default function ResultModal({
               </div>
             )}
 
-            <h4 className="summary-list-title" style={{ marginTop: '1.25rem' }}>全出題単語 ({words.length}語)</h4>
+            <h4 className="summary-list-title" style={{ marginTop: '1.25rem' }}>出題単語一覧 ({words.length}語)</h4>
             <div className="result-words-list">
               {words.map((w) => {
                 const wasWrong = (resultData.mistakes || []).some(m => m.id === w.id);
@@ -101,19 +113,34 @@ export default function ResultModal({
                       <button
                         className="mini-speak-btn"
                         onClick={() => sound.speak(w.word)}
+                        title="発音"
                       >
                         <Volume2 size={14} />
                       </button>
                       <strong className="item-word">{w.word}</strong>
                       <span className="item-meaning">{w.meaning}</span>
                     </div>
-                    <span className="item-badge">{!wasWrong ? '正解' : '要復習'}</span>
+                    <div className="item-right-actions">
+                      <span className="item-badge">{!wasWrong ? '正解' : '要復習'}</span>
+                      <button
+                        className="item-report-btn"
+                        onClick={() => onReportWord && onReportWord(w)}
+                        title="単語ミス報告"
+                      >
+                        <AlertTriangle size={13} />
+                      </button>
+                    </div>
                   </div>
                 );
               })}
             </div>
           </div>
         )}
+
+        {/* スポンサー広告枠 */}
+        <div className="result-ad-slot">
+          <AdBanner slot="result" />
+        </div>
 
         {/* アクションボタン */}
         <div className="result-actions">

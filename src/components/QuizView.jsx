@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Volume2, ArrowLeft, Check, X, Sparkles, HelpCircle, ArrowRight, RotateCcw, Flame } from 'lucide-react';
+import { Volume2, ArrowLeft, Check, X, Sparkles, HelpCircle, ArrowRight, RotateCcw, AlertTriangle } from 'lucide-react';
 import { sound } from '../services/sound';
+import AdBanner from './AdBanner';
 
 export default function QuizView({
   words,
   onComplete,
   onBack,
+  onReportWord,
 }) {
   // words: 初期の出題単語リスト
   const [quizQueue, setQuizQueue] = useState(words); // 現在の出題キュー
@@ -100,7 +102,7 @@ export default function QuizView({
           return [...prev, currentWord];
         });
       }
-      // 不正解時：約0.9秒（正解の意味を確認できる時間）で自動送り（タップで即スキップ可）
+      // 不正解時：約0.95秒（正解の意味を確認できる時間）で自動送り（タップで即スキップ可）
       autoNextTimerRef.current = setTimeout(() => {
         proceedToNext();
       }, 950);
@@ -139,7 +141,7 @@ export default function QuizView({
             <RotateCcw size={16} className="spin-icon" />
             <span>ラスト復習ラウンド突入！</span>
           </div>
-          <p className="revenge-desc">間違えた {mistakeWords.length} 単語をまとめて再出題中。全問正解で完全習得！</p>
+          <p className="revenge-desc">間違えた {mistakeWords.length} 単語をまとめて再出題中。全問正解で完全マスター！</p>
         </div>
       )}
 
@@ -177,11 +179,26 @@ export default function QuizView({
         }}
       >
         <div className="quiz-card-header">
-          <span className="quiz-level-badge">{currentWord.level || 'A2'}</span>
-          <span className="quiz-pos-badge">{currentWord.partOfSpeech}</span>
-          {isRevengeRound && (
-            <span className="revenge-pill">要復習単語</span>
-          )}
+          <div className="card-header-left">
+            <span className="quiz-level-badge">{currentWord.level || 'A2'}</span>
+            <span className="quiz-pos-badge">{currentWord.partOfSpeech}</span>
+            {isRevengeRound && (
+              <span className="revenge-pill">要復習単語</span>
+            )}
+          </div>
+
+          {/* 単語ミス報告クイックボタン */}
+          <button
+            className="report-typo-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onReportWord) onReportWord(currentWord);
+            }}
+            title="この単語のスペルや訳ミスを報告"
+          >
+            <AlertTriangle size={13} />
+            <span>単語ミス報告</span>
+          </button>
         </div>
 
         {/* 英単語表示 */}
@@ -274,6 +291,11 @@ export default function QuizView({
       {/* キーボード & 操作ガイド */}
       <div className="keyboard-guide">
         <span>⚡ <strong>爆速オート進行中</strong>：解答後すぐ次の問題へ進みます（タップで即スキップ可）</span>
+      </div>
+
+      {/* 下部スポンサー広告枠 */}
+      <div className="quiz-ad-container">
+        <AdBanner slot="quiz-bottom" />
       </div>
     </div>
   );

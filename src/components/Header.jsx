@@ -1,5 +1,5 @@
-import React from 'react';
-import { Sparkles, Flame, Zap, Trophy, Volume2, VolumeX, Moon, Sun, User, LogIn } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Sparkles, Flame, Zap, Trophy, Volume2, VolumeX, Moon, Sun, User, LogIn, BarChart3 } from 'lucide-react';
 import { sound } from '../services/sound';
 
 export default function Header({
@@ -11,9 +11,22 @@ export default function Header({
   setIsMuted,
   onOpenAuth,
   onOpenContact,
+  onOpenAdmin,
   currentTab,
   setCurrentTab,
 }) {
+  const [inquiryCount, setInquiryCount] = useState(0);
+
+  useEffect(() => {
+    try {
+      const inqs = JSON.parse(localStorage.getItem('wordquest_inquiries') || '[]');
+      const pending = inqs.filter(i => (i.status || 'pending') === 'pending').length;
+      setInquiryCount(pending);
+    } catch {
+      setInquiryCount(0);
+    }
+  }, []);
+
   const toggleSound = () => {
     const next = !isMuted;
     setIsMuted(next);
@@ -79,8 +92,22 @@ export default function Header({
             <span className="stat-unit">EXP</span>
           </div>
 
+          {/* 管理者ダッシュボード・お問い合わせ確認ボタン */}
+          <button
+            className="icon-btn admin-icon-btn"
+            onClick={onOpenAdmin}
+            title="管理者ダッシュボード（お問い合わせ一覧 ＆ スマホOS割合確認）"
+          >
+            <BarChart3 size={17} />
+            {inquiryCount > 0 && <span className="header-badge-dot">{inquiryCount}</span>}
+          </button>
+
           {/* お問い合わせ・ご意見ボタン */}
-          <button className="icon-btn contact-icon-btn pc-only-btn" onClick={onOpenContact} title="単語ミス報告・ご意見・お問い合わせ">
+          <button
+            className="icon-btn contact-icon-btn pc-only-btn"
+            onClick={() => onOpenContact()}
+            title="単語ミス報告・ご意見・お問い合わせ"
+          >
             📩
           </button>
 
@@ -128,6 +155,13 @@ export default function Header({
         >
           <Trophy size={14} className="mobile-trophy-icon" />
           <span>ランキング</span>
+        </button>
+        <button
+          className="mobile-nav-btn mobile-admin-tab"
+          onClick={onOpenAdmin}
+          title="お問い合わせ・OS比率確認"
+        >
+          <span>📊 管理</span>
         </button>
       </div>
     </header>

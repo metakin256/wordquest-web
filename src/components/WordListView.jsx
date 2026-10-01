@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Volume2, CheckCircle2, RotateCcw, ArrowLeft, BookOpen, ChevronDown, Sparkles, Flame } from 'lucide-react';
+import { Search, Volume2, CheckCircle2, RotateCcw, ArrowLeft, BookOpen, ChevronDown, Sparkles, Flame, AlertTriangle } from 'lucide-react';
 import { WORDS_DATABASE, WORD_CATEGORIES } from '../data/words';
 import { storage } from '../services/storage';
 import { sound } from '../services/sound';
 
 const PAGE_SIZE = 40; // 1回あたりの表示件数（超高速レンダリング）
 
-export default function WordListView({ progress, onBack }) {
+export default function WordListView({ progress, onBack, onReportWord }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -135,24 +135,35 @@ export default function WordListView({ progress, onBack }) {
           return (
             <div key={word.id} className="word-card-item">
               <div className="word-card-header">
-                <span className="quiz-level-badge">{word.level}</span>
-                <span className="quiz-pos-badge">{word.partOfSpeech}</span>
+                <div className="card-header-left">
+                  <span className="quiz-level-badge">{word.level}</span>
+                  <span className="quiz-pos-badge">{word.partOfSpeech}</span>
+                </div>
 
-                {isMastered && (
-                  <span className="status-pill mastered" title="3回以上連続正解">
-                    <CheckCircle2 size={13} /> 習得済 (🔥{streak})
-                  </span>
-                )}
-                {isWeak && (
-                  <span className="status-pill review" title="直近で不正解">
-                    <RotateCcw size={13} /> 要復習
-                  </span>
-                )}
-                {isLearning && (
-                  <span className="status-pill learning" title="定着中">
-                    <Flame size={13} /> 習得中 ({streak}/3)
-                  </span>
-                )}
+                <div className="card-header-right">
+                  {isMastered && (
+                    <span className="status-pill mastered" title="3回以上連続正解">
+                      <CheckCircle2 size={13} /> 習得済 (🔥{streak})
+                    </span>
+                  )}
+                  {isWeak && (
+                    <span className="status-pill review" title="直近で不正解">
+                      <RotateCcw size={13} /> 要復習
+                    </span>
+                  )}
+                  {isLearning && (
+                    <span className="status-pill learning" title="定着中">
+                      <Flame size={13} /> 習得中 ({streak}/3)
+                    </span>
+                  )}
+                  <button
+                    className="report-typo-btn-icon"
+                    onClick={() => onReportWord && onReportWord(word)}
+                    title="この単語の誤字・訳ミスを報告"
+                  >
+                    <AlertTriangle size={13} />
+                  </button>
+                </div>
               </div>
 
               <div className="word-card-body">
